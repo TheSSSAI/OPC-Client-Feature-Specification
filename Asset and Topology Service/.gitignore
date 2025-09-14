@@ -1,0 +1,78 @@
+# Visual Studio Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# User-specific files
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+
+# IDE files
+[Ii]ntelliJ.*
+*.iml
+*.ipr
+*.iws
+
+# Rider files
+.idea/
+*.sln.iml
+
+# Mac files
+.DS_Store
+
+# Miscellaneous
+*.pem
+*.pfx
+*.bak
+*.class
+*.db
+*.ncb
+*.pdb
+*.scc
+*.vspscc
+*.vssscc
+_ReSharper*/
+*.pid
+*.log
+*.plg
+*.psess
+*.vsp
+*.vspx
+*.gpstate
+*.tlog
+
+# NuGet
+*.nupkg
+*.snupkg
+/packages
+
+# Dotnet specific
+project.lock.json
+project.fragment.lock.json
+
+# Environment files
+.env
+secrets.dev.yaml
+*.env.local
+
+# Docker
+docker-compose.override.yml

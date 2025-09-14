@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  ingestion-service:
+    container_name: ingestion-service
+    build:
+      context: .
+      dockerfile: src/DataIngestionService.Api/Dockerfile
+    ports:
+      - "8080:8080" # HTTP for metrics/health
+      - "8081:8081" # gRPC with mTLS
+    environment:
+      - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Development}
+      - ASPNETCORE_URLS=https://+:8081;http://+:8080
+      - ConnectionStrings__TimescaleDb=Host=${DB_HOST};Port=${DB_PORT};Database=${DB_NAME};Username=${DB_USER};Password=${DB_PASSWORD}
+      - Kestrel__Certificates__Default__Password=${KESTREL_CERTIFICATE_PASSWORD}
+    volumes:
+      # In a real production setup, certs would be mounted from a secure volume manager like Kubernetes Secrets
+      - ./certs:/app/certs:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - opc-twin-net
+
+  db:
+    container_name: timescale-db
+    image: timescale/timescaledb-ha:pg16-all
+    ports:
+      - "${DB_PORT}:5432"
+    environment:
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=${DB_NAME}
+    volumes:
+      - timescale-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - opc-twin-net
+
+volumes:
+  timescale-data:
+    driver: local
+
+networks:
+  opc-twin-net:
+    driver: bridge

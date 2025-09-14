@@ -1,0 +1,12 @@
+# Kustomize patch for the development environment's global rate-limiting policy.
+# This patch targets the 'global-rate-limiting' KongPlugin resource from the base
+# and overrides the limits with more lenient values suitable for development and testing,
+# preventing developers from being blocked during normal work.
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: global-rate-limiting
+config:
+  # Lenient rate limit for development to facilitate testing and debugging.
+  minute: 1000
+  hour: 20000

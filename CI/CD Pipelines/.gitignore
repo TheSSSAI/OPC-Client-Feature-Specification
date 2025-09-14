@@ -1,0 +1,23 @@
+# IDE-specific files
+.vscode/
+.idea/
+
+# OS-generated files
+.DS_Store
+Thumbs.db
+
+# Helm-specific files
+*.tgz
+/helm/charts/application/charts/
+/helm/charts/application/crds/
+
+# Scripting artifacts
+/scripts/venv/
+/scripts/__pycache__/
+*.pyc
+
+# Local runtime files
+tmp/
+*.tmp
+*.bak
+*.swp

@@ -1,0 +1,29 @@
+# This file is the entrypoint for the base configuration of the Kong API Gateway.
+# It aggregates all common, environment-agnostic resources that define the core
+# routing, security, and traffic management policies for the Central Management Plane.
+# Kustomize overlays for specific environments (development, staging, production)
+# will use this base and apply environment-specific patches.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# The namespace where all these gateway resources will be deployed.
+# This ensures logical separation within the Kubernetes cluster.
+resources:
+  # Level 0: Core Namespace
+  - namespace.yaml
+
+  # Level 1: Global and Reusable Plugins (Policies)
+  - plugins/cors-policy.yaml
+  - plugins/global-jwt-validation.yaml
+  - plugins/global-rate-limiting.yaml
+  - plugins/openapi-aggregation.yaml
+
+  # Level 2: Routing Rules for each backend microservice
+  - routing/aiml-service-ingress.yaml
+  - routing/alarm-notification-service-ingress.yaml
+  - routing/asset-service-ingress.yaml
+  - routing/audit-service-ingress.yaml
+  - routing/device-mgmt-service-ingress.yaml
+  - routing/docs-ingress.yaml
+  - routing/iam-service-ingress.yaml
+  - routing/query-service-ingress.yaml

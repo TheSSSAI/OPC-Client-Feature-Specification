@@ -1,0 +1,11 @@
+# base/namespace.yaml
+# Defines the dedicated Kubernetes namespace for all API Gateway components.
+# This is the foundational resource for isolating the gateway infrastructure.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: api-gateway
+  labels:
+    # Used for network policies and resource grouping
+    app.kubernetes.io/name: api-gateway-namespace
+    app.kubernetes.io/instance: system-gateway

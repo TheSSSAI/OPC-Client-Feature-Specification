@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+import "google/protobuf/timestamp.proto";
+
+package audit.v1;
+
+option csharp_namespace = "System.Shared.Contracts.Grpc.Audit.V1";
+
+// The AuditService provides a centralized endpoint for all microservices to record significant
+// user and system actions in a tamper-evident audit trail, supporting compliance with
+// regulations like FDA 21 CFR Part 11.
+service AuditService {
+  // Logs a single, significant action. This is a unary RPC for guaranteed delivery and acknowledgement.
+  rpc LogAction (LogActionRequest) returns (LogActionResponse);
+}
+
+// LogActionRequest contains all necessary information for a single audit log entry.
+// Its structure is designed to be comprehensive and standardized across the entire system.
+message LogActionRequest {
+  // The unique identifier for the tenant in which the action occurred.
+  string tenant_id = 1;
+
+  // The unique identifier for the user who performed the action. Can be a system identifier for automated actions.
+  string user_id = 2;
+
+  // The precise UTC timestamp when the action occurred.
+  google.protobuf.Timestamp timestamp = 3;
+
+  // The type of action performed, using a standardized enumeration.
+  // Example: "USER_LOGIN", "DATA_WRITE", "CONFIGURATION_UPDATE"
+  string action_type = 4;
+
+  // The name of the entity or resource that was affected by the action.
+  // Example: "Asset", "OpcTag", "UserRole"
+  string entity_name = 5;
+
+  // The unique identifier of the specific entity instance that was affected.
+  // Example: A specific asset's GUID or a user's ID.
+  string entity_id = 6;
+
+  // A JSON-formatted string containing detailed, action-specific context.
+  // For a data write, this would include old and new values. For a configuration change, it could be a diff.
+  string details_json = 7;
+
+  // The source IP address from which the action was initiated.
+  string source_ip_address = 8;
+}
+
+// LogActionResponse is the acknowledgement from the AuditService confirming that
+// the log entry has been successfully received and persisted.
+message LogActionResponse {
+  // The unique identifier assigned to the newly created audit log entry by the persistence layer.
+  string audit_log_id = 1;
+
+  // A flag indicating if the log was successfully persisted.
+  bool success = 2;
+}

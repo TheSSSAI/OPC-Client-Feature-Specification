@@ -1,0 +1,126 @@
+#
+# CI - Pull Request Validation Workflow
+#
+# This workflow is the primary quality gate for the system. It is triggered on every pull request
+# targeting the 'main' or 'develop' branches. Its purpose is to ensure that code changes meet
+# quality and security standards before they can be merged.
+#
+# Key Features:
+# - Path Filtering: Determines which services have changed to run validation only on affected components.
+# - Parallel Execution: Uses a matrix strategy to run jobs for multiple services in parallel, speeding up feedback.
+# - Reusable Workflows: Calls modular, reusable workflows for building, testing, static analysis, and security scanning.
+# - Quality Gates: Enforces 80% unit test coverage (REQ-1-093) and fails if security scans find critical vulnerabilities.
+# - Security: Uses least-privilege permissions for the GITHUB_TOKEN.
+#
+
+name: CI - Pull Request Validation
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'src/**' # Only run for changes in source code directories
+
+jobs:
+  # This job identifies which microservices and libraries have been changed in the pull request.
+  # It generates a matrix that subsequent jobs will use to run validations only on the affected components.
+  determine-services-to-run:
+    name: Determine Changed Services
+    runs-on: ubuntu-latest
+    outputs:
+      # This matrix will be a JSON array of service definitions that have changed.
+      # e.g., '[{"name": "IAM Service", "path": "src/Services/IAM", "dotnet-version": "8.0.x"}, ...]'
+      matrix: ${{ steps.filter.outputs.changes }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Identify changed services using path filter
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          # The key for each filter becomes the 'name' in the matrix output.
+          # The 'files' property contains the path to the service's source code.
+          filters: |
+            iam_service:
+              - 'src/Services/IAM/**'
+            asset_topology_service:
+              - 'src/Services/AssetTopology/**'
+            device_management_service:
+              - 'src/Services/DeviceManagement/**'
+            data_ingestion_service:
+              - 'src/Services/DataIngestion/**'
+            shared_kernel:
+              - 'src/SharedKernel/**'
+            opc_core_client:
+              - 'src/Edge/OpcCoreClient/**'
+            frontend_mpl:
+              - 'src/Frontend/ManagementPlane/**'
+
+  # This job runs the core validation steps for each changed service identified in the previous job.
+  validate-service:
+    name: Validate ${{ matrix.service.name }}
+    needs: determine-services-to-run
+    if: needs.determine-services-to-run.outputs.matrix != '[]' # Only run if there are changes
+    strategy:
+      fail-fast: false # Allow all jobs to complete even if one fails
+      matrix:
+        service: ${{ fromJson(needs.determine-services-to-run.outputs.matrix) }}
+    
+    # Define minimal permissions required for this job.
+    permissions:
+      contents: read             # Required to checkout the code.
+      pull-requests: write      # Required to post status checks back to the PR.
+      id-token: write           # Required for OIDC authentication to Snyk/other tools.
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetch all history for accurate test coverage reporting
+
+      # Step 1: Perform static analysis on the codebase.
+      - name: Perform Static Analysis
+        uses: ./.github/workflows/reusable/reusable-static-analysis.yml
+        with:
+          solution-path: ${{ matrix.service.solution-path || 'IndustrialAi.sln' }}
+
+      # Step 2: Build the .NET project and run unit tests.
+      # This reusable workflow internally handles the 80% test coverage check.
+      - name: Build and Test .NET Project
+        if: ${{ matrix.service.is-dotnet == 'true' }} # Conditional step for .NET services
+        uses: ./.github/workflows/reusable/reusable-dotnet-build-test.yml
+        with:
+          project-path: ${{ matrix.service.path }}
+          dotnet-version: ${{ matrix.service.dotnet-version || '8.0.x' }}
+
+      # Step 3: Run security scans using Snyk.
+      # This reusable workflow will fail if vulnerabilities exceed the defined threshold.
+      - name: Scan for Vulnerabilities with Snyk
+        uses: ./.github/workflows/reusable/reusable-snyk-scan.yml
+        with:
+          target-path: ${{ matrix.service.path }}
+          fail-on-severity: 'high'
+        secrets:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+  # This job acts as a final status check for the PR. It only succeeds if all validation jobs have passed.
+  # This makes it easy to set a single required status check in GitHub's branch protection rules.
+  pr-status-check:
+    name: PR Status Check
+    needs: validate-service
+    if: always() # This job must always run to report the final status.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check status of all validation jobs
+        if: ${{ needs.validate-service.result != 'success' }}
+        run: |
+          echo "One or more validation checks failed. Please review the logs of the failed jobs."
+          exit 1
+      - name: All checks passed
+        if: ${{ needs.validate-service.result == 'success' }}
+        run: echo "All validation checks passed successfully."

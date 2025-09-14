@@ -1,0 +1,40 @@
+# .yamllint.yml - Configuration for yamllint
+# For a full list of rules, see:
+# https://yamllint.readthedocs.io/en/stable/rules.html
+
+extends: default
+
+rules:
+  # General
+  line-length:
+    max: 120
+    level: warning
+  document-start: disable
+  indentation:
+    spaces: consistent
+    indent-sequences: consistent
+    check-multi-line-strings: false
+
+  # Braces
+  braces:
+    min-spaces-inside: 0
+    max-spaces-inside: 1
+
+  # Brackets
+  brackets:
+    min-spaces-inside: 0
+    max-spaces-inside: 0
+
+  # Colons
+  colons:
+    max-spaces-before: 0
+    max-spaces-after: 1
+
+  # Commas
+  commas:
+    max-spaces-before: 0
+    min-spaces-after: 1
+    max-spaces-after: 1
+
+ignore: |
+  /helm/charts/application/templates/

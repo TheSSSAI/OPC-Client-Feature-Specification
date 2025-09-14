@@ -1,0 +1,45 @@
+syntax = "proto3";
+
+import "google/protobuf/timestamp.proto";
+
+package ingestion.v1;
+
+option csharp_namespace = "System.Shared.Contracts.Grpc.Ingestion.V1";
+
+// The IngestionService provides a high-throughput, low-latency endpoint for streaming time-series data
+// from OPC Core Clients to the Central Management Plane's data ingestion pipeline.
+// This service is designed for performance and reliability, leveraging client-side streaming.
+service IngestionService {
+  // Streams a sequence of data points from a client. The client continuously sends
+  // data, and the server acknowledges receipt periodically or at the end of the stream.
+  rpc StreamData (stream DataPointRequest) returns (IngestAck);
+}
+
+// DataPointRequest represents a single time-series data point collected from an OPC server.
+// It is the primary message format for the data streaming pipeline.
+message DataPointRequest {
+  // The unique identifier for the OPC tag. This should be a stable ID from the system's tag configuration.
+  // Example: "ns=2;s=Machine.Pump1.Temperature"
+  string opc_tag_id = 1;
+
+  // The timestamp when the value was recorded, in UTC.
+  // This is sourced from the OPC server (SourceTimestamp).
+  google.protobuf.Timestamp timestamp = 2;
+
+  // The numeric value of the data point.
+  double value = 3;
+
+  // The quality of the data point, represented as a standard OPC UA status code.
+  // Example: 0 for Good, other values for Bad, Uncertain, etc.
+  uint32 quality = 4;
+}
+
+// IngestAck is the acknowledgement message sent from the server to the client.
+// It confirms that a batch of data has been received and queued for processing.
+message IngestAck {
+  // A unique identifier for the batch or acknowledgement, useful for tracing and debugging.
+  string correlation_id = 1;
+
+  // A flag indicating if the received batch was successfully accepted by the server.
+  bool success = 2;
+}

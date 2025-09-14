@@ -1,0 +1,54 @@
+#
+# API Gateway Configuration: Ingress for AI/ML Management Service
+#
+# This Ingress resource defines the public-facing API routes for the AI/ML Management Service.
+# It is responsible for routing requests related to model management (upload, versioning, approval),
+# and Natural Language Querying (NLQ) to the appropriate backend service.
+#
+# Applied Policies (Plugins):
+# - cors-policy: Enables Cross-Origin Resource Sharing for the frontend application.
+# - global-jwt-validation: Enforces that all requests must have a valid JWT from Keycloak.
+# - global-rate-limiting: Protects the service from excessive requests.
+#
+# Requirements Fulfilled: REQ-1-086 (Unified API), REQ-1-080 (Security), REQ-1-004 (AI/ML Features)
+#
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: aiml-service-ingress
+  namespace: industrial-edge-api-gateway
+  annotations:
+    # Specifies that Kong should handle this Ingress resource.
+    kubernetes.io/ingress.class: kong
+    # Instructs Kong to strip the matched path prefix before forwarding to the backend.
+    # e.g., /api/v1/models/123 -> /123
+    konghq.com/strip-path: "true"
+    # Applies a comma-separated list of KongPlugin resources to all routes defined in this Ingress.
+    # The plugins are defined in base/plugins/.
+    konghq.com/plugins: cors-policy, global-jwt-validation, global-rate-limiting
+spec:
+  tls:
+    - hosts:
+        # This is a placeholder and MUST be patched by environment-specific overlays (e.g., api.dev.example.com).
+        - api.placeholder.local
+      # This secret name is a placeholder and MUST be patched by overlays.
+      # It references a Kubernetes Secret containing the TLS certificate and key.
+      secretName: api-tls-cert
+  rules:
+    - host: api.placeholder.local # Placeholder, patched by overlays.
+      http:
+        paths:
+          - path: /api/v1/models
+            pathType: Prefix
+            backend:
+              service:
+                name: aiml-service
+                port:
+                  number: 80
+          - path: /api/v1/nlq
+            pathType: Prefix
+            backend:
+              service:
+                name: aiml-service
+                port:
+                  number: 80

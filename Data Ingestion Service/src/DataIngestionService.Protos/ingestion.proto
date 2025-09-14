@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+import "google/protobuf/timestamp.proto";
+
+package datainjection.v1;
+
+// The Ingestion service defines the high-throughput, streaming RPC for OPC Core Clients.
+// It is designed for low-latency, high-volume time-series data transfer.
+service Ingestion {
+  // StreamData enables clients to send a continuous stream of time-series data points.
+  // The server processes the stream and returns a single acknowledgement upon completion or error.
+  // This is a client-streaming RPC.
+  rpc StreamData(stream DataPoint) returns (IngestAck);
+}
+
+// DataPoint represents a single time-series value from an OPC tag.
+message DataPoint {
+  // The unique identifier of the OPC tag, in UUID format.
+  // This must correspond to an OpcTag entity in the system.
+  string opc_tag_id = 1;
+
+  // The timestamp of the data point, captured at the source (OPC Server).
+  // Must be in UTC.
+  google.protobuf.Timestamp timestamp = 2;
+
+  // The value of the data point.
+  double value = 3;
+
+  // The quality of the data point, as defined by the OPC specification.
+  // e.g., 192 = Good.
+  uint32 quality = 4;
+}
+
+// IngestAck is the acknowledgement sent by the server after the client finishes streaming.
+message IngestAck {
+  // Indicates if the stream was processed successfully.
+  bool success = 1;
+
+  // An optional message providing more details, especially in case of an error.
+  string message = 2;
+}

@@ -1,0 +1,18 @@
+# .tfsec/config.yml
+# Configuration file for tfsec, a static analysis security scanner for Terraform code.
+# This file controls which checks are run and how results are reported.
+
+# Exclude specific checks if they are known to be false positives for this project.
+# It's better to address issues than to exclude them. Use this sparingly.
+# Example:
+# exclude:
+#   - aws-s3-enable-bucket-logging
+
+# Only report issues with a severity of HIGH or CRITICAL.
+# For CI/CD, you might want to fail on WARNING or higher.
+min_required_severity: HIGH
+
+# You can also specify which checks to include, which is useful for focusing on a subset.
+# only_include:
+#   - aws-iam-no-policy-wildcards
+#   - aws-s3-encryption-customer-key

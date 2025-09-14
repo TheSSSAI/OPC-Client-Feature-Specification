@@ -1,0 +1,423 @@
+-- PostgreSQL Schema for Industrial IoT Platform
+-- This script is designed for PostgreSQL and includes optimizations for TimescaleDB.
+
+-- ========= PRELIMINARIES =========
+
+-- Enable UUID generation functions
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- ========= TABLE DEFINITIONS =========
+
+-- REQ-1-024: Represents a customer organization
+CREATE TABLE "Tenant" (
+    "tenantId" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    "name" VARCHAR(255) NOT NULL,
+    "dataResidencyRegion" VARCHAR(50) NOT NULL,
+    "isolationModel" VARCHAR(50) NOT NULL DEFAULT 'RLS' CHECK ("isolationModel" IN ('RLS', 'SCHEMA')),
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "UC_Tenant_Name" UNIQUE ("name")
+);
+
+-- REQ-1-011: Represents a system user
+CREATE TABLE "User" (
+    "userId" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    "tenantId" UUID NOT NULL,
+    "email" VARCHAR(255) NOT NULL,
+    "firstName" VARCHAR(100) NOT NULL,
+    "lastName" VARCHAR(100) NOT NULL,
+    "identityProviderId" VARCHAR(255) NOT NULL,
+    "notificationPreferences" JSONB DEFAULT '{}',
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "UC_User_Email" UNIQUE ("email"),
+    CONSTRAINT "UC_User_IdentityProviderId" UNIQUE ("identityProviderId")
+);
+
+-- REQ-1-011: Defines a set of permissions
+CREATE TABLE "Role" (
+    "roleId" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    "name" VARCHAR(50) NOT NULL,
+    "description" TEXT,
+    "isSystemRole" BOOLEAN NOT NULL DEFAULT false,
+    CONSTRAINT "UC_Role_Name" UNIQUE ("name")
+);
+
+-- REQ-1-031, REQ-1-046: Represents a physical or logical asset
+CREATE TABLE "Asset" (
+    "assetId" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    "tenantId" UUID NOT NULL,
+    "name" VARCHAR(255) NOT NULL,
+    "parentAssetId" UUID,
+    "assetTemplateId" UUID,
+    "properties" JSONB DEFAULT '{}',
+    "isDeleted" BOOLEAN NOT NULL DEFAULT false,
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "UC_Asset_Tenant_Name" UNIQUE ("tenantId", "name")
+);
+
+-- REQ-1-061: Junction table for User-Role assignment
+CREATE TABLE "UserRole" (
+    "userId" UUID NOT NULL,
+    "roleId" UUID NOT NULL,
+    "assetScopeId" UUID,
+    "assignedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY ("userId", "roleId")
+);
+
+-- REQ-1-040, REQ-1-023: Tamper-evident record of actions (Partitioned Table)
+CREATE TABLE "AuditLog" (
+    "auditLogId" BIGSERIAL,
+    "tenantId" UUID NOT NULL,
+    "userId" UUID,
+    "timestamp" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "actionType" VARCHAR(100) NOT NULL,
+    "entityName" VARCHAR(100),
+    "entityId" VARCHAR(255),
+    "details" JSONB DEFAULT '{}',
+    "sourceIpAddress" VARCHAR(45),
+    "qldbDigest" VARCHAR(255),
+    PRIMARY KEY ("auditLogId", "timestamp"),
+    CONSTRAINT "UC_AuditLog_QldbDigest" UNIQUE ("qldbDigest")
+) PARTITION BY RANGE ("timestamp");
+
+-- REQ-1-001, REQ-1-062: Deployed on-premise client instance
+CREATE TABLE "OpcCoreClient" (
+    "opcCoreClientId" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    "tenantId" UUID NOT NULL,
+    "name" VARCHAR(255) NOT NULL,
+    "status" VARCHAR(50) NOT NULL DEFAULT 'Offline' CHECK ("status" IN ('Online', 'Offline', 'Degraded')),
+    "softwareVersion" VARCHAR(50),
+    "lastHeartbeat" TIMESTAMPTZ,
+    "isDeleted" BOOLEAN NOT NULL DEFAULT false,
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "UC_OpcCoreClient_Tenant_Name" UNIQUE ("tenantId", "name")
+);
+
+-- REQ-1-002: Configuration for connecting to an OPC server
+CREATE TABLE "OpcServerConnection" (
+    "opcServerConnectionId" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    "opcCoreClientId" UUID NOT NULL,
+    "name" VARCHAR(255) NOT NULL,
+    "protocol" VARCHAR(20) NOT NULL CHECK ("protocol" IN ('OPC-DA', 'OPC-UA', 'OPC-XML-DA')),
+    "endpointUrl" VARCHAR(512) NOT NULL,
+    "securityConfiguration" JSONB DEFAULT '{}',
+    "isRedundantPair" BOOLEAN NOT NULL DEFAULT false,
+    "backupServerConnectionId" UUID,
+    CONSTRAINT "UC_OpcServerConnection_Client_Name" UNIQUE ("opcCoreClientId", "name")
+);
+
+-- REQ-1-047: Data point (tag) from an OPC server
+CREATE TABLE "OpcTag" (
+    "opcTagId" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    "assetId" UUID NOT NULL,
+    "opcServerConnectionId" UUID NOT NULL,
+    "name" VARCHAR(255) NOT NULL,
+    "nodeId" VARCHAR(512) NOT NULL,
+    "dataType" VARCHAR(50),
+    "isWritable" BOOLEAN NOT NULL DEFAULT false,
+    "subscriptionUpdateRateMs" INTEGER DEFAULT 1000,
+    CONSTRAINT "UC_OpcTag_Connection_NodeId" UNIQUE ("opcServerConnectionId", "nodeId")
+);
+
+-- REQ-1-003: Time-series data point (TimescaleDB Hypertable)
+CREATE TABLE "TagDataPoint" (
+    "timestamp" TIMESTAMPTZ NOT NULL,
+    "opcTagId" UUID NOT NULL,
+    "tenantId" UUID NOT NULL,
+    "assetId" UUID NOT NULL,
+    "value" DOUBLE PRECISION NOT NULL,
+    "quality" VARCHAR(50) NOT NULL,
+    PRIMARY KEY ("opcTagId", "timestamp")
+);
+
+-- Convert TagDataPoint to a TimescaleDB Hypertable
+-- NOTE: This requires the TimescaleDB extension to be installed.
+SELECT create_hypertable('"TagDataPoint"', 'timestamp');
+
+-- REQ-1-035: Alarm or event from an OPC A&C server
+CREATE TABLE "Alarm" (
+    "alarmId" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    "tenantId" UUID NOT NULL,
+    "assetId" UUID NOT NULL,
+    "opcTagId" UUID NOT NULL,
+    "state" VARCHAR(50) NOT NULL DEFAULT 'Active' CHECK ("state" IN ('Active', 'Acknowledged', 'Shelved', 'Cleared')),
+    "severity" INTEGER NOT NULL DEFAULT 500,
+    "message" TEXT,
+    "activeTimestamp" TIMESTAMPTZ NOT NULL,
+    "acknowledgedTimestamp" TIMESTAMPTZ,
+    "shelvedUntilTimestamp" TIMESTAMPTZ
+);
+
+-- REQ-1-036: Logs all state changes for an alarm (Partitioned Table)
+CREATE TABLE "AlarmHistory" (
+    "alarmHistoryId" BIGSERIAL,
+    "alarmId" UUID NOT NULL,
+    "userId" UUID NOT NULL,
+    "action" VARCHAR(50) NOT NULL CHECK ("action" IN ('Acknowledge', 'Shelve', 'Unshelve', 'Suppress')),
+    "timestamp" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "comment" TEXT,
+    PRIMARY KEY ("alarmHistoryId", "timestamp")
+) PARTITION BY RANGE ("timestamp");
+
+-- REQ-1-049: Machine learning model
+CREATE TABLE "AiModel" (
+    "aiModelId" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    "tenantId" UUID NOT NULL,
+    "name" VARCHAR(255) NOT NULL,
+    "description" TEXT,
+    "modelType" VARCHAR(100) NOT NULL CHECK ("modelType" IN ('PredictiveMaintenance', 'AnomalyDetection')),
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "UC_AiModel_Tenant_Name" UNIQUE ("tenantId", "name")
+);
+
+-- REQ-1-050: Manages versions of an AI model
+CREATE TABLE "AiModelVersion" (
+    "aiModelVersionId" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    "aiModelId" UUID NOT NULL,
+    "version" VARCHAR(50) NOT NULL,
+    "status" VARCHAR(50) NOT NULL DEFAULT 'PendingApproval' CHECK ("status" IN ('PendingApproval', 'Approved', 'Rejected', 'Archived')),
+    "storagePath" VARCHAR(1024) NOT NULL,
+    "modelFormat" VARCHAR(20) NOT NULL DEFAULT 'ONNX' CHECK ("modelFormat" IN ('ONNX')),
+    "submittedByUserId" UUID NOT NULL,
+    "approvedByUserId" UUID,
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "UC_AiModelVersion_Model_Version" UNIQUE ("aiModelId", "version")
+);
+
+-- REQ-1-014, REQ-1-056: Links an AI model version to an asset
+CREATE TABLE "ModelAssignment" (
+    "modelAssignmentId" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    "assetId" UUID NOT NULL,
+    "aiModelVersionId" UUID NOT NULL,
+    "opcCoreClientId" UUID NOT NULL,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "assignedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "UC_ModelAssignment_Asset_Version" UNIQUE ("assetId", "aiModelVersionId")
+);
+
+-- REQ-1-052: Anomaly detected by an AI model (Partitioned Table)
+CREATE TABLE "AnomalyEvent" (
+    "anomalyEventId" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    "modelAssignmentId" UUID NOT NULL,
+    "timestamp" TIMESTAMPTZ NOT NULL,
+    "anomalyScore" DOUBLE PRECISION NOT NULL,
+    "isTrueAnomaly" BOOLEAN,
+    "feedbackComment" TEXT
+) PARTITION BY RANGE ("timestamp");
+
+-- REQ-1-063: Manages software licenses
+CREATE TABLE "License" (
+    "licenseId" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    "tenantId" UUID NOT NULL,
+    "licenseTier" VARCHAR(50) NOT NULL DEFAULT 'Silver',
+    "licenseKey" VARCHAR(255) NOT NULL,
+    "validFrom" TIMESTAMPTZ NOT NULL,
+    "validTo" TIMESTAMPTZ NOT NULL,
+    "maxUsers" INTEGER,
+    "maxClients" INTEGER,
+    CONSTRAINT "UC_License_TenantId" UNIQUE ("tenantId"),
+    CONSTRAINT "UC_License_LicenseKey" UNIQUE ("licenseKey")
+);
+
+-- REQ-1-065: Configuration for automated reports
+CREATE TABLE "ReportTemplate" (
+    "reportTemplateId" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    "tenantId" UUID NOT NULL,
+    "name" VARCHAR(255) NOT NULL,
+    "configuration" JSONB NOT NULL DEFAULT '{}',
+    "schedule" VARCHAR(100),
+    "outputFormat" VARCHAR(20) NOT NULL DEFAULT 'PDF' CHECK ("outputFormat" IN ('PDF', 'HTML', 'CSV')),
+    "distributionList" JSONB DEFAULT '[]',
+    CONSTRAINT "UC_ReportTemplate_Tenant_Name" UNIQUE ("tenantId", "name")
+);
+
+-- REQ-1-032: Request for a critical system change
+CREATE TABLE "ApprovalRequest" (
+    "approvalRequestId" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    "tenantId" UUID NOT NULL,
+    "requestType" VARCHAR(100) NOT NULL CHECK ("requestType" IN ('DeployAiModel', 'ModifyAlarmPriority', 'ChangeSecurityPolicy')),
+    "status" VARCHAR(50) NOT NULL DEFAULT 'Pending' CHECK ("status" IN ('Pending', 'Approved', 'Rejected')),
+    "requestedByUserId" UUID NOT NULL,
+    "approvedByUserId" UUID,
+    "requestDetails" JSONB NOT NULL DEFAULT '{}',
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ========= INDEXES =========
+
+-- Tenant Indexes
+CREATE INDEX "IX_Tenant_IsActive" ON "Tenant" ("isActive");
+CREATE INDEX "IX_Tenant_CreatedAt" ON "Tenant" ("createdAt");
+
+-- User Indexes
+CREATE INDEX "IX_User_TenantId" ON "User" ("tenantId");
+CREATE INDEX "IX_User_Tenant_Active_Name" ON "User" ("tenantId", "isActive", "lastName", "firstName");
+
+-- Role Indexes
+CREATE INDEX "IX_Role_IsSystemRole" ON "Role" ("isSystemRole");
+
+-- Asset Indexes
+CREATE INDEX "IX_Asset_Tenant_Parent" ON "Asset" ("tenantId", "parentAssetId");
+CREATE INDEX "IX_Asset_Tenant_IsDeleted" ON "Asset" ("tenantId", "isDeleted");
+CREATE INDEX "IX_Asset_AssetTemplateId" ON "Asset" ("assetTemplateId");
+
+-- UserRole Indexes
+CREATE INDEX "IX_UserRole_RoleId" ON "UserRole" ("roleId");
+CREATE INDEX "IX_UserRole_AssetScopeId" ON "UserRole" ("assetScopeId");
+
+-- AuditLog Indexes
+-- Note: Primary key on (auditLogId, timestamp) supports partitioning.
+CREATE INDEX "IX_AuditLog_Tenant_Timestamp" ON "AuditLog" ("tenantId", "timestamp");
+CREATE INDEX "IX_AuditLog_User_Timestamp" ON "AuditLog" ("userId", "timestamp");
+CREATE INDEX "IX_AuditLog_Entity" ON "AuditLog" ("entityName", "entityId");
+CREATE INDEX "IX_AuditLog_Details_GIN" ON "AuditLog" USING GIN ("details");
+
+-- OpcCoreClient Indexes
+CREATE INDEX "IX_OpcCoreClient_Tenant_Status_Heartbeat" ON "OpcCoreClient" ("tenantId", "status", "lastHeartbeat" DESC);
+CREATE INDEX "IX_OpcCoreClient_Tenant_IsDeleted" ON "OpcCoreClient" ("tenantId", "isDeleted");
+
+-- OpcServerConnection Indexes
+CREATE INDEX "IX_OpcServerConnection_OpcCoreClientId" ON "OpcServerConnection" ("opcCoreClientId");
+
+-- OpcTag Indexes
+CREATE INDEX "IX_OpcTag_AssetId" ON "OpcTag" ("assetId");
+
+-- TagDataPoint Indexes
+-- Note: The hypertable automatically creates an index on the time column.
+CREATE INDEX "IX_TagDataPoint_Tenant_Asset_Timestamp" ON "TagDataPoint" ("tenantId", "assetId", "timestamp" DESC);
+
+-- Alarm Indexes
+CREATE INDEX "IX_Alarm_OpcTagId" ON "Alarm" ("opcTagId");
+CREATE INDEX "IX_Alarm_Tenant_State_Severity_Timestamp" ON "Alarm" ("tenantId", "state", "severity" DESC, "activeTimestamp" DESC);
+CREATE INDEX "IX_Alarm_AssetId" ON "Alarm" ("assetId");
+
+-- AlarmHistory Indexes
+-- Note: Primary key on (alarmHistoryId, timestamp) supports partitioning.
+CREATE INDEX "IX_AlarmHistory_Alarm_Timestamp" ON "AlarmHistory" ("alarmId", "timestamp");
+CREATE INDEX "IX_AlarmHistory_User_Timestamp" ON "AlarmHistory" ("userId", "timestamp");
+
+-- AiModel Indexes
+CREATE INDEX "IX_AiModel_Tenant_ModelType" ON "AiModel" ("tenantId", "modelType");
+
+-- AiModelVersion Indexes
+CREATE INDEX "IX_AiModelVersion_AiModelId" ON "AiModelVersion" ("aiModelId");
+CREATE INDEX "IX_AiModelVersion_Status" ON "AiModelVersion" ("status");
+
+-- ModelAssignment Indexes
+CREATE INDEX "IX_ModelAssignment_AssetId" ON "ModelAssignment" ("assetId");
+CREATE INDEX "IX_ModelAssignment_AiModelVersionId" ON "ModelAssignment" ("aiModelVersionId");
+CREATE INDEX "IX_ModelAssignment_OpcCoreClientId" ON "ModelAssignment" ("opcCoreClientId");
+
+-- AnomalyEvent Indexes
+CREATE INDEX "IX_AnomalyEvent_Assignment_Timestamp" ON "AnomalyEvent" ("modelAssignmentId", "timestamp");
+CREATE INDEX "IX_AnomalyEvent_IsTrueAnomaly" ON "AnomalyEvent" ("isTrueAnomaly");
+
+-- License Indexes
+CREATE INDEX "IX_License_ValidTo" ON "License" ("validTo");
+
+-- ReportTemplate Indexes
+CREATE INDEX "IX_ReportTemplate_TenantId" ON "ReportTemplate" ("tenantId");
+CREATE INDEX "IX_ReportTemplate_Schedule" ON "ReportTemplate" ("schedule");
+
+-- ApprovalRequest Indexes
+CREATE INDEX "IX_ApprovalRequest_Tenant_Status_Type_Created" ON "ApprovalRequest" ("tenantId", "status", "requestType", "createdAt");
+CREATE INDEX "IX_ApprovalRequest_RequestedByUser" ON "ApprovalRequest" ("requestedByUserId");
+CREATE INDEX "IX_ApprovalRequest_ApprovedByUser" ON "ApprovalRequest" ("approvedByUserId");
+
+-- ========= FOREIGN KEY CONSTRAINTS =========
+
+-- User -> Tenant
+ALTER TABLE "User" ADD CONSTRAINT "FK_User_Tenant" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("tenantId") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- OpcCoreClient -> Tenant
+ALTER TABLE "OpcCoreClient" ADD CONSTRAINT "FK_OpcCoreClient_Tenant" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("tenantId") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- Asset -> Tenant
+ALTER TABLE "Asset" ADD CONSTRAINT "FK_Asset_Tenant" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("tenantId") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- Asset -> Asset (Self-referencing for hierarchy)
+ALTER TABLE "Asset" ADD CONSTRAINT "FK_Asset_ParentAsset" FOREIGN KEY ("parentAssetId") REFERENCES "Asset"("assetId") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AuditLog -> Tenant
+ALTER TABLE "AuditLog" ADD CONSTRAINT "FK_AuditLog_Tenant" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("tenantId") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AuditLog -> User
+ALTER TABLE "AuditLog" ADD CONSTRAINT "FK_AuditLog_User" FOREIGN KEY ("userId") REFERENCES "User"("userId") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- UserRole -> User
+ALTER TABLE "UserRole" ADD CONSTRAINT "FK_UserRole_User" FOREIGN KEY ("userId") REFERENCES "User"("userId") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- UserRole -> Role
+ALTER TABLE "UserRole" ADD CONSTRAINT "FK_UserRole_Role" FOREIGN KEY ("roleId") REFERENCES "Role"("roleId") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- UserRole -> Asset (for scoped permissions)
+ALTER TABLE "UserRole" ADD CONSTRAINT "FK_UserRole_AssetScope" FOREIGN KEY ("assetScopeId") REFERENCES "Asset"("assetId") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- OpcServerConnection -> OpcCoreClient
+ALTER TABLE "OpcServerConnection" ADD CONSTRAINT "FK_OpcServerConnection_OpcCoreClient" FOREIGN KEY ("opcCoreClientId") REFERENCES "OpcCoreClient"("opcCoreClientId") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- OpcServerConnection -> OpcServerConnection (Self-referencing for redundancy)
+ALTER TABLE "OpcServerConnection" ADD CONSTRAINT "FK_OpcServerConnection_Backup" FOREIGN KEY ("backupServerConnectionId") REFERENCES "OpcServerConnection"("opcServerConnectionId") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- OpcTag -> Asset
+ALTER TABLE "OpcTag" ADD CONSTRAINT "FK_OpcTag_Asset" FOREIGN KEY ("assetId") REFERENCES "Asset"("assetId") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- OpcTag -> OpcServerConnection
+ALTER TABLE "OpcTag" ADD CONSTRAINT "FK_OpcTag_OpcServerConnection" FOREIGN KEY ("opcServerConnectionId") REFERENCES "OpcServerConnection"("opcServerConnectionId") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- TagDataPoint -> OpcTag
+ALTER TABLE "TagDataPoint" ADD CONSTRAINT "FK_TagDataPoint_OpcTag" FOREIGN KEY ("opcTagId") REFERENCES "OpcTag"("opcTagId") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- Alarm -> OpcTag
+ALTER TABLE "Alarm" ADD CONSTRAINT "FK_Alarm_OpcTag" FOREIGN KEY ("opcTagId") REFERENCES "OpcTag"("opcTagId") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AlarmHistory -> Alarm
+ALTER TABLE "AlarmHistory" ADD CONSTRAINT "FK_AlarmHistory_Alarm" FOREIGN KEY ("alarmId") REFERENCES "Alarm"("alarmId") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AlarmHistory -> User
+ALTER TABLE "AlarmHistory" ADD CONSTRAINT "FK_AlarmHistory_User" FOREIGN KEY ("userId") REFERENCES "User"("userId") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AiModel -> Tenant
+ALTER TABLE "AiModel" ADD CONSTRAINT "FK_AiModel_Tenant" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("tenantId") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AiModelVersion -> AiModel
+ALTER TABLE "AiModelVersion" ADD CONSTRAINT "FK_AiModelVersion_AiModel" FOREIGN KEY ("aiModelId") REFERENCES "AiModel"("aiModelId") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AiModelVersion -> User (Submitted By)
+ALTER TABLE "AiModelVersion" ADD CONSTRAINT "FK_AiModelVersion_SubmittedByUser" FOREIGN KEY ("submittedByUserId") REFERENCES "User"("userId") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AiModelVersion -> User (Approved By)
+ALTER TABLE "AiModelVersion" ADD CONSTRAINT "FK_AiModelVersion_ApprovedByUser" FOREIGN KEY ("approvedByUserId") REFERENCES "User"("userId") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- ModelAssignment -> Asset
+ALTER TABLE "ModelAssignment" ADD CONSTRAINT "FK_ModelAssignment_Asset" FOREIGN KEY ("assetId") REFERENCES "Asset"("assetId") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- ModelAssignment -> AiModelVersion
+ALTER TABLE "ModelAssignment" ADD CONSTRAINT "FK_ModelAssignment_AiModelVersion" FOREIGN KEY ("aiModelVersionId") REFERENCES "AiModelVersion"("aiModelVersionId") ON DELETE RESTRICT ON UPDATE CASCADE;
+	
+-- ModelAssignment -> OpcCoreClient
+ALTER TABLE "ModelAssignment" ADD CONSTRAINT "FK_ModelAssignment_OpcCoreClient" FOREIGN KEY ("opcCoreClientId") REFERENCES "OpcCoreClient"("opcCoreClientId") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AnomalyEvent -> ModelAssignment
+ALTER TABLE "AnomalyEvent" ADD CONSTRAINT "FK_AnomalyEvent_ModelAssignment" FOREIGN KEY ("modelAssignmentId") REFERENCES "ModelAssignment"("modelAssignmentId") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- License -> Tenant
+ALTER TABLE "License" ADD CONSTRAINT "FK_License_Tenant" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("tenantId") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- ReportTemplate -> Tenant
+ALTER TABLE "ReportTemplate" ADD CONSTRAINT "FK_ReportTemplate_Tenant" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("tenantId") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- ApprovalRequest -> Tenant
+ALTER TABLE "ApprovalRequest" ADD CONSTRAINT "FK_ApprovalRequest_Tenant" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("tenantId") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- ApprovalRequest -> User (Requested By)
+ALTER TABLE "ApprovalRequest" ADD CONSTRAINT "FK_ApprovalRequest_RequestedByUser" FOREIGN KEY ("requestedByUserId") REFERENCES "User"("userId") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- ApprovalRequest -> User (Approved By)
+ALTER TABLE "ApprovalRequest" ADD CONSTRAINT "FK_ApprovalRequest_ApprovedByUser" FOREIGN KEY ("approvedByUserId") REFERENCES "User"("userId") ON DELETE SET NULL ON UPDATE CASCADE;
+

@@ -1,0 +1,57 @@
+#
+# KongPlugin: global-jwt-validation
+#
+# PURPOSE:
+# This plugin enforces JWT-based authentication for all protected routes, acting as the primary
+# security gate for the API Gateway. It validates the signature and claims of incoming tokens
+# against the configured Identity Provider (Keycloak).
+#
+# REQUIREMENTS MAPPED:
+# - REQ-1-080: "All API endpoints must be secured, requiring a valid JSON Web Token (JWT) Bearer Token..."
+# - REQ-NFR-003: Implements the centralized, standards-based security architecture.
+#
+# ARCHITECTURAL DECISIONS:
+# - The token is only accepted from the `Authorization` header for security reasons, preventing
+#   token leakage via URI parameters.
+# - The `exp` (expiration) claim is verified to prevent replay attacks with stale tokens.
+# - The `sub` (subject) claim is used as the `key_claim_name` to uniquely identify the authenticated user
+#   (the "consumer" in Kong's terminology), which is then used by other plugins like rate-limiting.
+# - The actual JWKS URI for signature validation is configured on a separate `KongConsumer` resource
+#   that represents the Keycloak issuer, decoupling the validation policy from the issuer's details.
+#
+---
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: global-jwt-validation
+  namespace: api-gateway
+  annotations:
+    kubernetes.io/description: "Enforces JWT validation against the Keycloak IdP for all protected API routes."
+config:
+  # Ensures that only the 'exp' (expiration time) claim is explicitly verified by the plugin.
+  # Signature and issuer validation are handled implicitly by matching the token to a configured consumer.
+  claims_to_verify:
+    - exp
+  
+  # For security, tokens are only accepted via the Authorization header.
+  # This prevents tokens from being leaked in URLs, server logs, or browser history.
+  header_names:
+    - Authorization
+  
+  # Specifies that the JWT is expected to be in the "Bearer <token>" format.
+  token_sources:
+    - header
+
+  # The claim used to identify the consumer (the user) from the JWT payload.
+  # 'sub' is the standard OIDC claim for the user's unique identifier.
+  key_claim_name: sub
+  
+  # Disables looking for the JWT in query string parameters.
+  uri_param_names: []
+
+  # Disables looking for the JWT in cookie.
+  cookie_names: []
+
+  # This setting ensures the plugin is compatible with Keycloak's standard claim structure.
+  run_on_preflight: false
+plugin: jwt

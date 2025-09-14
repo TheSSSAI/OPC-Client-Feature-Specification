@@ -1,0 +1,10 @@
+# Patterns to ignore when building packages.
+# This supports shell glob matching, relative path matching, and directory matching.
+
+# Common things to ignore
+.DS_Store
+*.swp
+*.bak
+*.tmp
+*~
+# End ignore

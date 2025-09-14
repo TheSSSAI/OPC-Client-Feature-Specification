@@ -1,0 +1,99 @@
+#
+# CD - Rollback Production Service Workflow
+#
+# This workflow provides a controlled and audited mechanism to roll back a service in Production
+# to a previous, known-good version. It is a critical incident response tool.
+#
+# Key Features:
+# - Manual Trigger: Uses 'workflow_dispatch' for explicit initiation.
+# - Manual Approval Gate: Reuses the 'production' environment to ensure rollbacks are also approved.
+# - Audited Action: The entire process is logged and requires user input, providing a clear audit trail.
+# - Reusability: Leverages the same secure deployment workflow used for regular deployments.
+#
+
+name: CD - Rollback Production Service
+
+on:
+  workflow_dispatch:
+    inputs:
+      service_name:
+        description: 'The name of the service to roll back (e.g., iam_service).'
+        required: true
+        type: string
+      image_tag_to_rollback_to:
+        description: 'The specific, known-good image tag to deploy as the rollback version.'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  # This job looks up the service configuration, same as the production deployment workflow.
+  lookup-service-config:
+    name: Lookup Service Configuration
+    runs-on: ubuntu-latest
+    outputs:
+      config: ${{ steps.lookup.outputs.config }}
+    steps:
+      - id: lookup
+        run: |
+          SERVICE_NAME="${{ github.event.inputs.service_name }}"
+          # This mapping should be centralized and shared with the production deploy workflow.
+          if [ "$SERVICE_NAME" == "iam_service" ]; then
+            CONFIG='{"name": "IAM Service", "ecr-repo-name": "industrial-ai/iam-service", "namespace": "iam", "release-name": "iam-service"}'
+          elif [ "$SERVICE_NAME" == "asset_topology_service" ]; then
+            CONFIG='{"name": "Asset Topology Service", "ecr-repo-name": "industrial-ai/asset-topology-service", "namespace": "assets", "release-name": "asset-topology-service"}'
+          else
+            echo "::error::Unknown service name: $SERVICE_NAME"
+            exit 1
+          fi
+          echo "config=$CONFIG" >> $GITHUB_OUTPUT
+
+  # This job performs the rollback by re-deploying the specified older version.
+  rollback-production:
+    name: Rollback ${{ fromJson(needs.lookup-service-config.outputs.config).name }} in Production
+    needs: lookup-service-config
+    runs-on: ubuntu-latest
+
+    # The rollback action is also gated by the 'production' environment's approval rule.
+    # This ensures that even emergency actions are reviewed and audited.
+    environment:
+      name: production
+      url: https://prod.example.com/${{ fromJson(needs.lookup-service-config.outputs.config).release-name }}
+
+    steps:
+      - name: Log Rollback Intent
+        run: |
+          echo "‼️ INITIATING ROLLBACK of ${{ fromJson(needs.lookup-service-config.outputs.config).name }} to version ${{ github.event.inputs.image_tag_to_rollback_to }}"
+          echo "Triggered by: @${{ github.actor }}"
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # We call the exact same reusable workflow as a normal deployment. The only difference is the
+      # image tag we provide, which points to the older, stable version.
+      - name: Deploy Rollback Version using Helm
+        uses: ./.github/workflows/reusable/reusable-helm-deploy.yml
+        with:
+          environment: production
+          namespace: ${{ fromJson(needs.lookup-service-config.outputs.config).namespace }}
+          image-uri: ${{ vars.AWS_ECR_REGISTRY_URI }}/${{ fromJson(needs.lookup-service-config.outputs.config).ecr-repo-name }}:${{ github.event.inputs.image_tag_to_rollback_to }}
+          helm-chart-path: ./helm/charts/application
+          release-name: ${{ fromJson(needs.lookup-service-config.outputs.config).release-name }}
+          aws-region: ${{ vars.AWS_REGION }}
+        secrets:
+          AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_PRODUCTION_ROLE_ARN }}
+          KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG_PRODUCTION }}
+
+      - name: Post-rollback notification
+        if: success()
+        run: |
+          echo "✅ Successfully rolled back ${{ fromJson(needs.lookup-service-config.outputs.config).name }} to version ${{ github.event.inputs.image_tag_to_rollback_to }} in Production."
+
+      - name: Post-rollback failure notification
+        if: failure()
+        run: |
+          echo "❌ CRITICAL: Failed to roll back ${{ fromJson(needs.lookup-service-config.outputs.config).name }} to version ${{ github.event.inputs.image_tag_to_rollback_to }}."
+          # This should trigger a high-priority incident alert.

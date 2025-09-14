@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  opc-core-client:
+    container_name: opc-core-client
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      # Mount a volume for the persistent data buffer
+      - opc-client-buffer:/app/buffer
+      # For local development, you might mount appsettings directly
+      - ./src/OpcCoreClient/appsettings.Development.json:/app/appsettings.Development.json:ro
+      # Mount a directory for certificates
+      # - ./certs:/app/certs:ro
+    networks:
+      - industrial-net
+    depends_on:
+      - mqtt-broker
+
+  mqtt-broker:
+    container_name: mqtt-broker
+    image: eclipse-mosquitto:2.0
+    restart: unless-stopped
+    ports:
+      - "1883:1883"  # Standard MQTT port
+      - "9001:9001"  # MQTT over WebSockets for debugging
+    # You can mount a custom config file if needed
+    # volumes:
+    #   - ./docker/mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf
+    networks:
+      - industrial-net
+
+networks:
+  industrial-net:
+    driver: bridge
+
+volumes:
+  opc-client-buffer:
+    driver: local

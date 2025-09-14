@@ -1,0 +1,1 @@
+This diagram outlines the core multi-tenancy and security model. The Tenant is the central entity, isolating all other data. Users belong to a Tenant and are assigned Roles via the UserRole junction table. Role assignments can be scoped to specific Assets. All significant actions are recorded in the AuditLog, and critical changes are managed through ApprovalRequests.

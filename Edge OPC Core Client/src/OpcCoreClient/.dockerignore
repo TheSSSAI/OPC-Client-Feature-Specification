@@ -1,0 +1,15 @@
+# Exclude files and directories not needed in the Docker build context.
+# This improves build performance and reduces image size.
+
+**/bin/
+**/obj/
+.dockerignore
+.env
+.git
+.github
+.gitignore
+.vs
+.vscode
+docker-compose.yml
+README.md
+tests/

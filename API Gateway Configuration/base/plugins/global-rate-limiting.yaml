@@ -1,0 +1,59 @@
+#
+# KongPlugin: global-rate-limiting
+#
+# PURPOSE:
+# This plugin provides a global rate-limiting policy to protect backend services from being
+# overwhelmed by excessive requests from a single user, preventing denial-of-service attacks
+# and ensuring fair resource usage.
+#
+# REQUIREMENTS MAPPED:
+# - REQ-1-086: "...rate limiting."
+# - REQ-1-085: Supports scalability by using a distributed policy (`redis`).
+# - REQ-NFR-006: Direct implementation of rate-limiting policy.
+#
+# ARCHITECTURAL DECISIONS:
+# - `policy: redis` is chosen to ensure accurate and consistent rate-limiting across a horizontally
+#   scaled fleet of Kong gateway pods. The Redis server acts as a centralized, distributed counter.
+# - `limit_by: credential` links the rate limit to the authenticated user's identity (the 'sub' claim
+#   from the JWT), ensuring the limit is applied per-user, not per-IP.
+# - The specific rate limits (`minute`, `hour`) are set to generous defaults in the `base` configuration.
+#   These values MUST be patched by environment-specific overlays to reflect realistic production limits
+#   or more relaxed development limits.
+# - `hide_client_headers: true` prevents leaking rate-limiting headers to the client, which can provide
+#   unnecessary information to potential attackers.
+#
+---
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: global-rate-limiting
+  namespace: api-gateway
+  annotations:
+    kubernetes.io/description: "Global rate-limiting policy to protect upstream services."
+config:
+  # The policy for storing and synchronizing rate-limiting counters.
+  # 'redis' is required for accuracy in a multi-pod, horizontally-scaled deployment.
+  policy: redis
+  
+  # The entity to which the rate limit is applied.
+  # 'credential' ties the limit to the authenticated user from the JWT plugin.
+  limit_by: credential
+
+  # Default rate limits. These are placeholders and SHOULD be patched by Kustomize overlays.
+  # Example production patch: minute: 1000, hour: 20000
+  minute: 5000
+  hour: 100000
+  
+  # Connection details for the Redis server.
+  # These values should point to the Redis service within the Kubernetes cluster.
+  # Sensitive values like 'redis_password' should be configured via Kubernetes Secrets.
+  redis_host: "redis-headless.redis.svc.cluster.local"
+  redis_port: 6379
+  # redis_password: <Reference to a Kubernetes Secret>
+  redis_database: 0
+  redis_timeout: 2000
+
+  # Prevents sending rate-limiting headers (X-RateLimit-Limit, X-RateLimit-Remaining)
+  # to the client, which is a security best practice.
+  hide_client_headers: true
+plugin: rate-limiting

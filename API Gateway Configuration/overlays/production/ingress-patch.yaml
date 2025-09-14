@@ -1,0 +1,11 @@
+# Kustomize patch for production environment Ingress resources.
+# This patch overrides the placeholder hostname in the base Ingress configurations
+# with the public-facing, official production hostname.
+# It targets all Ingress resources by kind to ensure a consistent public URL.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ingress-hostname-patch # The name is for reference, Kustomize targets by kind.
+spec:
+  rules:
+    - host: api.opc-central.com

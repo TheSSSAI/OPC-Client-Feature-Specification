@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- 
+      This is the Shared Kernel library for the entire system.
+      It contains contracts (DTOs, gRPC messages), domain abstractions, and shared exceptions.
+      It is designed to be packaged as a NuGet package and consumed by all other .NET services and the edge client.
+    -->
+    <PackageId>System.Shared</PackageId>
+    <Description>Shared Kernel library containing common contracts (gRPC, REST), domain abstractions (DDD), and utilities for the Industrial IoT Platform.</Description>
+    <PackageTags>shared-kernel;ddd;contracts;grpc;iot</PackageTags>
+    
+    <!-- This property enables the project to be packed into a NuGet package using 'dotnet pack'. -->
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 
+      This section includes dependencies required for gRPC contract definition and code generation.
+      - Google.Protobuf provides the core libraries for working with Protocol Buffers.
+      - Grpc.Tools contains the protocol buffer compiler (protoc) and is used at build time to generate
+        C# code from the .proto files. It should be marked as PrivateAssets="All" because consuming
+        projects do not need the tools themselves, only the generated code.
+    -->
+    <PackageReference Include="Google.Protobuf" Version="3.27.1" />
+    <PackageReference Include="Grpc.Tools" Version="2.64.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 
+      This section tells the build system where to find the Protocol Buffer (.proto) files.
+      - 'Include' specifies the path to the .proto files.
+      - 'GrpcServices="None"' is crucial here. It instructs the gRPC tooling to generate only the C# message
+        classes and a base client/server class, but not a full service implementation. This is correct for a
+        contract-only library. The actual services will be implemented in the microservice projects that
+        reference this library.
+      - 'ProtoRoot' specifies the root directory for resolving 'import' statements within .proto files.
+    -->
+    <Protobuf Include="Contracts\Grpc\*.proto" GrpcServices="None" ProtoRoot="Contracts\Grpc\" />
+  </ItemGroup>
+
+</Project>

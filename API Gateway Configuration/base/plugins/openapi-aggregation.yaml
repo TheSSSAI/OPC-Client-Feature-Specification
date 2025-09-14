@@ -1,0 +1,50 @@
+#
+# KongPlugin: openapi-aggregation
+#
+# PURPOSE:
+# This plugin automates the aggregation and exposure of OpenAPI specifications from all backend
+# microservices. It provides a single, unified API documentation endpoint for developers and
+# external consumers, simplifying API discovery.
+#
+# REQUIREMENTS MAPPED:
+# - REQ-1-086: "All external REST APIs must be documented using the OpenAPI specification." This plugin
+#   provides the mechanism to expose the aggregated documentation.
+# - REQ-1-028: "all external-facing REST APIs must implement URI path versioning." This plugin will
+#   aggregate specs from different versioned paths.
+#
+# ARCHITECTURAL DECISIONS:
+# - This plugin will be applied to a dedicated `docs-ingress.yaml` resource (Level 2) to isolate the
+#   documentation endpoint from application traffic.
+# - It relies on a convention where every microservice exposes its OpenAPI JSON specification at a
+#   standardized path (`/swagger/v1/swagger.json`).
+# - The aggregated specification is exposed at a well-known public path `/api/docs/openapi.json`.
+#
+---
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: openapi-aggregation
+  namespace: api-gateway
+  annotations:
+    kubernetes.io/description: "Aggregates OpenAPI specs from upstream services and exposes a unified API documentation endpoint."
+config:
+  # This setting allows the plugin to discover the upstream OpenAPI specifications by introspecting
+  # the routing rules defined in the Ingress resources.
+  discovery:
+    enabled: true
+  
+  # Defines the standard path on each upstream microservice where the plugin should look
+  # for an OpenAPI specification file. All microservices must adhere to this convention.
+  spec_url: "/swagger/v1/swagger.json"
+  
+  # Configures the public-facing endpoint where the aggregated specification will be served.
+  merged_spec:
+    path: "/api/docs/openapi.json"
+    
+  # Enables caching of the aggregated spec to improve performance and reduce load on backend services.
+  # The cache is invalidated automatically when routing configuration changes.
+  cache:
+    enabled: true
+    ttl: 3600 # Cache for 1 hour
+
+plugin: openapi

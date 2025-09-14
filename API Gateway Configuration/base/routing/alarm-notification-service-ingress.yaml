@@ -1,0 +1,50 @@
+#
+# API Gateway Configuration: Ingress for Alarm & Notification Service
+#
+# This Ingress resource defines the public-facing API routes for managing alarm configurations
+# and notification rules. It routes requests to the backend Alarm & Notification Service.
+#
+# Applied Policies (Plugins):
+# - cors-policy: Enables Cross-Origin Resource Sharing for the frontend application.
+# - global-jwt-validation: Enforces that all requests must have a valid JWT from Keycloak.
+# - global-rate-limiting: Protects the service from excessive requests.
+#
+# Requirements Fulfilled: REQ-1-086 (Unified API), REQ-1-080 (Security), REQ-1-037 (Alarm Notification Engine)
+#
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: alarm-notification-service-ingress
+  namespace: industrial-edge-api-gateway
+  annotations:
+    # Specifies that Kong should handle this Ingress resource.
+    kubernetes.io/ingress.class: kong
+    # Instructs Kong to strip the matched path prefix before forwarding to the backend.
+    konghq.com/strip-path: "true"
+    # Applies a comma-separated list of KongPlugin resources.
+    konghq.com/plugins: cors-policy, global-jwt-validation, global-rate-limiting
+spec:
+  tls:
+    - hosts:
+        # This is a placeholder and MUST be patched by environment-specific overlays.
+        - api.placeholder.local
+      # This secret name is a placeholder and MUST be patched by overlays.
+      secretName: api-tls-cert
+  rules:
+    - host: api.placeholder.local # Placeholder, patched by overlays.
+      http:
+        paths:
+          - path: /api/v1/alarms
+            pathType: Prefix
+            backend:
+              service:
+                name: alarm-notification-service
+                port:
+                  number: 80
+          - path: /api/v1/notification-rules
+            pathType: Prefix
+            backend:
+              service:
+                name: alarm-notification-service
+                port:
+                  number: 80

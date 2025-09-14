@@ -1,0 +1,78 @@
+# 1. Create the Index Lifecycle Management (ILM) Policy
+# This policy automates the lifecycle of log indices, moving them through hot-warm-delete phases.
+PUT _ilm/policy/cmp_logs_policy
+{
+  "policy": {
+    "phases": {
+      "hot": {
+        "min_age": "0ms",
+        "actions": {
+          "rollover": {
+            "max_primary_shard_size": "50gb",
+            "max_age": "30d"
+          }
+        }
+      },
+      "warm": {
+        "min_age": "30d",
+        "actions": {
+          "shrink": {
+            "number_of_shards": 1
+          },
+          "forcemerge": {
+            "max_num_segments": 1
+          }
+        }
+      },
+      "delete": {
+        "min_age": "365d",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  }
+}
+
+# 2. Create the Index Template for Log Entries
+# This template applies the correct mappings and settings (including the ILM policy)
+# to any new index matching the "cmp_logs-*" pattern.
+PUT _index_template/cmp_logs_template
+{
+  "index_patterns": ["cmp_logs-*"],
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 1,
+      "index.lifecycle.name": "cmp_logs_policy",
+      "index.lifecycle.rollover_alias": "cmp_logs"
+    },
+    "mappings": {
+      "properties": {
+        "timestamp": { "type": "date" },
+        "level": { "type": "keyword" },
+        "message": { "type": "text" },
+        "serviceName": { "type": "keyword" },
+        "opcCoreClientId": { "type": "keyword" },
+        "tenantId": { "type": "keyword" },
+        "correlationId": { "type": "keyword" },
+        "exceptionDetails": {
+          "type": "object",
+          "enabled": false
+        }
+      }
+    }
+  }
+}
+
+# 3. Bootstrap the initial index and write alias
+# This creates the first index and the alias that applications will write to.
+# ILM will manage rollovers to new indices automatically.
+PUT cmp_logs-000001
+{
+  "aliases": {
+    "cmp_logs": {
+      "is_write_index": true
+    }
+  }
+}

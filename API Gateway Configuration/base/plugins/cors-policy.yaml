@@ -1,0 +1,53 @@
+#
+# KongPlugin: cors-policy
+#
+# PURPOSE:
+# This plugin manages Cross-Origin Resource Sharing (CORS) policies for the API Gateway.
+# It is essential for allowing the frontend Single-Page Application (SPA), served from a different origin,
+# to securely make requests to the backend APIs. Without this, browser security policies would block
+# all cross-origin API calls.
+#
+# REQUIREMENTS MAPPED:
+# - Implicitly required by the system architecture where a frontend SPA (REPO-FE-MPL)
+#   consumes APIs from the gateway (REPO-GW-API).
+#
+# ARCHITECTURAL DECISIONS:
+# - The `origins` field is a placeholder ('*') in the base configuration. This is NOT production-safe.
+#   It MUST be patched by environment-specific overlays (e.g., development, staging, production)
+#   to specify the exact domain of the frontend application for that environment.
+# - `credentials: true` is enabled to support authenticated sessions, allowing the browser to send
+#   the JWT Bearer token with cross-origin requests.
+# - The list of allowed `methods` is comprehensive to support all standard RESTful operations.
+#
+---
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: cors-policy
+  namespace: api-gateway
+  annotations:
+    kubernetes.io/description: "Global CORS policy to allow cross-origin requests from the frontend SPA."
+config:
+  # IMPORTANT: The origins list is a placeholder and MUST be patched by environment-specific overlays.
+  # Example for production overlay: origins: ["https://app.industrial-iot.com"]
+  origins:
+    - "*"
+  methods:
+    - GET
+    - POST
+    - PUT
+    - PATCH
+    - DELETE
+    - OPTIONS
+  headers:
+    - "Accept"
+    - "Authorization"
+    - "Content-Type"
+    - "X-Correlation-ID"
+  exposed_headers:
+    - "Content-Length"
+    - "Content-Type"
+    - "X-Request-ID"
+  credentials: true
+  max_age: 3600
+plugin: cors

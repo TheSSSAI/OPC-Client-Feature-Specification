@@ -1,0 +1,58 @@
+# reusable-static-analysis.yml
+# This reusable workflow performs static code analysis, including format checks and enforcing analyzer rules.
+# It helps maintain code quality and consistency across all .NET projects.
+# REQ-1-086: Enforces quality gates.
+
+name: 'Reusable Workflow: .NET Static Analysis'
+
+on:
+  workflow_call:
+    inputs:
+      solution-path:
+        description: 'The path to the .NET solution file (.sln).'
+        required: true
+        type: string
+      dotnet-version:
+        description: 'The version of the .NET SDK to use.'
+        required: false
+        type: string
+        default: '8.0.x'
+      configuration:
+        description: 'The build configuration (e.g., Debug, Release).'
+        required: false
+        type: string
+        default: 'Release'
+
+jobs:
+  static-analysis:
+    name: Static Code Analysis
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read # Required to checkout the code.
+
+    steps:
+      - name: 'Checkout Code'
+        uses: actions/checkout@v4
+
+      - name: 'Setup .NET SDK'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ inputs.dotnet-version }}
+
+      - name: 'Restore Dependencies'
+        run: dotnet restore ${{ inputs.solution-path }}
+
+      - name: 'Check Code Formatting'
+        run: |
+          echo "Verifying code formatting..."
+          dotnet format ${{ inputs.solution-path }} --verify-no-changes --verbosity diagnostic
+          echo "Formatting check passed."
+      
+      - name: 'Run Build with Analyzers'
+        run: |
+          echo "Building solution and running static code analyzers..."
+          # The -warnaserror flag treats all compiler and analyzer warnings as build-breaking errors.
+          # This is the primary mechanism for enforcing code style and quality rules defined in .editorconfig.
+          dotnet build ${{ inputs.solution-path }} --configuration ${{ inputs.configuration }} --no-restore -warnaserror
+          echo "Static analysis passed."

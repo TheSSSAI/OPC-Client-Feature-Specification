@@ -1,0 +1,46 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AssetTopology.Api", "src\AssetTopology.Api\AssetTopology.Api.csproj", "{F4E5B6C7-8901-2CD3-EFAB-234567890123}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AssetTopology.Application", "src\AssetTopology.Application\AssetTopology.Application.csproj", "{D2C3F4E5-6789-0AB1-CDEF-012345678901}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AssetTopology.Domain", "src\AssetTopology.Domain\AssetTopology.Domain.csproj", "{C1B2E3D4-F567-89A0-BCDE-F01234567890}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AssetTopology.Infrastructure", "src\AssetTopology.Infrastructure\AssetTopology.Infrastructure.csproj", "{E3D4A5B6-7890-1BC2-DEFA-123456789012}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AssetTopology.Tests.Unit", "tests\AssetTopology.Tests.Unit\AssetTopology.Tests.Unit.csproj", "{A5B6C7D8-9012-3DE4-FAB1-345678901234}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{F4E5B6C7-8901-2CD3-EFAB-234567890123}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F4E5B6C7-8901-2CD3-EFAB-234567890123}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F4E5B6C7-8901-2CD3-EFAB-234567890123}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F4E5B6C7-8901-2CD3-EFAB-234567890123}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D2C3F4E5-6789-0AB1-CDEF-012345678901}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D2C3F4E5-6789-0AB1-CDEF-012345678901}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D2C3F4E5-6789-0AB1-CDEF-012345678901}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D2C3F4E5-6789-0AB1-CDEF-012345678901}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C1B2E3D4-F567-89A0-BCDE-F01234567890}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C1B2E3D4-F567-89A0-BCDE-F01234567890}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C1B2E3D4-F567-89A0-BCDE-F01234567890}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C1B2E3D4-F567-89A0-BCDE-F01234567890}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E3D4A5B6-7890-1BC2-DEFA-123456789012}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E3D4A5B6-7890-1BC2-DEFA-123456789012}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E3D4A5B6-7890-1BC2-DEFA-123456789012}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E3D4A5B6-7890-1BC2-DEFA-123456789012}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A5B6C7D8-9012-3DE4-FAB1-345678901234}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A5B6C7D8-9012-3DE4-FAB1-345678901234}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A5B6C7D8-9012-3DE4-FAB1-345678901234}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A5B6C7D8-9012-3DE4-FAB1-345678901234}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(SolutionGuid) = {2A6F1D8B-C9A0-4E8D-A4C1-9B7E3F0A5E21}
+EndGlobal

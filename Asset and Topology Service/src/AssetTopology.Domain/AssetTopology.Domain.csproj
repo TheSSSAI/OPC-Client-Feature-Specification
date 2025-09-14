@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>System.Services.AssetTopology.Domain</RootNamespace>
+    <AssemblyName>System.Services.AssetTopology.Domain</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 
+      This project would reference a shared kernel or domain primitives library if one existed.
+      For example: <ProjectReference Include="..\..\..\Shared\Shared.Domain\Shared.Domain.csproj" />
+      BaseEntity is assumed to be defined within this project for now as per the file structure analysis.
+    -->
+  </ItemGroup>
+
+</Project>

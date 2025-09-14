@@ -1,0 +1,33 @@
+# Kustomization for the Staging Environment
+# This file applies staging-specific patches to the base configuration.
+# It mirrors the production setup as closely as possible, including hostnames
+# and near-production rate limits, but may use staging-specific certificates.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Inherit all common resources from the base configuration.
+resources:
+  - ../../base
+
+# Apply environment-specific patches.
+# Patches are applied to the resources loaded from the base.
+patches:
+  # Sets the hostname for all Ingress rules to the staging-specific URL
+  # (e.g., staging.opc-mesh.com). It may also configure staging TLS certificates.
+  - path: ingress-patch.yaml
+    target:
+      kind: Ingress
+      group: networking.k8s.io
+      version: v1
+      # Apply to all Ingress resources defined in the base
+      name: ".*"
+      annotationSelector: "kubernetes.io/ingress.class=kong"
+
+  # Overrides the global-rate-limiting plugin to set limits that are close to production.
+  # This allows for realistic performance and load testing in the staging environment.
+  - path: rate-limiting-patch.yaml
+    target:
+      kind: KongPlugin
+      group: configuration.konghq.com
+      version: v1
+      name: global-rate-limiting

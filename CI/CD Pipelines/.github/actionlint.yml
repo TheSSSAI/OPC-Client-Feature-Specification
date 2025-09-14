@@ -1,0 +1,10 @@
+# .github/actionlint.yml
+# Configuration for actionlint: https://github.com/rhysd/actionlint
+# This file is intentionally minimal. Most configuration is handled
+# by actionlint's sensible defaults.
+
+self-hosted-runner:
+  # actionlint cannot know the labels of self-hosted runners.
+  # Add the labels of your self-hosted runners to this `labels` section.
+  labels:
+    - ubuntu-latest-xl

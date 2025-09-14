@@ -1,0 +1,64 @@
+<Project>
+  <!-- This file applies to all projects in the solution -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>12.0</LangVersion>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <AnalysisLevel>latest</AnalysisLevel>
+    
+    <!-- Assembly Metadata -->
+    <Authors>Enterprise Systems Inc.</Authors>
+    <Company>Enterprise Systems Inc.</Company>
+    <Product>Industrial IoT Platform</Product>
+    <RepositoryUrl>https://github.com/enterprise-systems/industrial-iot</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
+
+  <!-- Central Package Version Management -->
+  <ItemGroup>
+    <!-- ASP.NET Core & gRPC -->
+    <PackageVersion Include="Grpc.AspNetCore" Version="2.63.0" />
+    <PackageVersion Include="Grpc.Tools" Version="2.64.0" />
+    <PackageVersion Include="Google.Protobuf" Version="3.27.0" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="8.0.6" />
+    <PackageVersion Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.20.1" />
+
+    <!-- Data Access -->
+    <PackageVersion Include="Npgsql" Version="8.0.3" />
+    <PackageVersion Include="StackExchange.Redis" Version="2.7.33" />
+
+    <!-- Resilience -->
+    <PackageVersion Include="Polly" Version="8.4.1" />
+
+    <!-- Logging & Observability -->
+    <PackageVersion Include="Serilog.AspNetCore" Version="8.0.1" />
+    <PackageVersion Include="Serilog.Enrichers.Environment" Version="3.0.1" />
+    <PackageVersion Include="Serilog.Sinks.Console" Version="6.0.0" />
+    <PackageVersion Include="OpenTelemetry.Exporter.Console" Version="1.9.0" />
+    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.9.0" />
+    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.9.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.9.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.GrpcNetClient" Version="1.9.0-beta.1" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.9.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Npgsql" Version="1.0.0-beta.12" />
+
+    <!-- Microsoft Extensions -->
+    <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="8.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.1" />
+
+    <!-- Testing -->
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.10.0" />
+    <PackageVersion Include="xunit" Version="2.8.1" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="2.8.1" />
+    <PackageVersion Include="coverlet.collector" Version="6.0.2" />
+    <PackageVersion Include="FluentAssertions" Version="6.12.0" />
+    <PackageVersion Include="Moq" Version="4.20.70" />
+    <PackageVersion Include="Testcontainers" Version="3.9.0" />
+    <PackageVersion Include="Testcontainers.PostgreSql" Version="3.9.0" />
+    <PackageVersion Include="Testcontainers.Redis" Version="3.9.0" />
+  </ItemGroup>
+
+</Project>

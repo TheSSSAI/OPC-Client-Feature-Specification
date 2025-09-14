@@ -1,0 +1,60 @@
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Rider
+.idea/
+
+# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+build/
+[Bb]in/
+[Oo]bj/
+artifacts/
+
+# Nuget packages
+*.nupkg
+*.snupkg
+/packages/
+*.nuget.props
+*.nuget.targets
+
+# User-specific files
+*.user
+*.bak
+
+# Environment files
+.env
+
+# Docker
+docker-compose.override.yml
+
+# Test results
+TestResults/
+*.trx
+*.coverlet.json
+
+# Logs
+logs/
+*.log
+
+# Rider temporary files
+*_i.cs
+*_i.g.cs
+*_i.g.cshtml.cs
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Secrets
+secrets.json
+appsettings.*.secrets.json

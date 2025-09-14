@@ -1,0 +1,114 @@
+# reusable-dotnet-build-test.yml
+# This reusable workflow builds a .NET solution, runs unit tests, and enforces a minimum code coverage threshold.
+# It is designed to be called by CI workflows for pull request validation.
+# REQ-1-086: Enforces automated testing.
+# REQ-1-093: Enforces 80% unit test coverage.
+
+name: 'Reusable Workflow: .NET Build, Test, and Coverage'
+
+on:
+  workflow_call:
+    inputs:
+      solution-path:
+        description: 'The path to the .NET solution file (.sln).'
+        required: true
+        type: string
+      dotnet-version:
+        description: 'The version of the .NET SDK to use.'
+        required: false
+        type: string
+        default: '8.0.x'
+      configuration:
+        description: 'The build configuration (e.g., Debug, Release).'
+        required: false
+        type: string
+        default: 'Release'
+      test-coverage-threshold:
+        description: 'The minimum required unit test coverage percentage.'
+        required: false
+        type: number
+        default: 80
+      runner-os:
+        description: 'The operating system for the runner.'
+        required: false
+        type: string
+        default: 'ubuntu-latest'
+
+jobs:
+  build-and-test:
+    name: Build, Test & Coverage Check
+    runs-on: ${{ inputs.runner-os }}
+
+    permissions:
+      contents: read # Read permissions are needed to checkout the repository code.
+
+    steps:
+      - name: 'Checkout Code'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetches all history for more accurate analysis
+
+      - name: 'Setup .NET SDK'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ inputs.dotnet-version }}
+
+      - name: 'Cache NuGet Packages'
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          # The key is based on the hash of the packages.lock.json file, ensuring cache invalidation when dependencies change.
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: 'Restore Dependencies'
+        run: dotnet restore ${{ inputs.solution-path }} --locked-mode
+
+      - name: 'Build Solution'
+        run: dotnet build ${{ inputs.solution-path }} --configuration ${{ inputs.configuration }} --no-restore
+
+      - name: 'Run Unit Tests and Collect Coverage'
+        run: |
+          dotnet test ${{ inputs.solution-path }} \
+            --configuration ${{ inputs.configuration }} \
+            --no-build \
+            --verbosity normal \
+            --collect:"XPlat Code Coverage" \
+            --results-directory ./test-results/ \
+            --logger "trx;LogFileName=test-results.trx"
+          
+          # Rename the coverage file to a standard name for easier processing.
+          # The default name contains a random GUID.
+          COVERAGE_FILE=$(find ./test-results/ -name 'coverage.cobertura.xml')
+          mv "$COVERAGE_FILE" ./test-results/coverage.cobertura.xml
+
+      - name: 'Check Code Coverage Threshold'
+        run: |
+          echo "Checking code coverage against threshold of ${{ inputs.test-coverage-threshold }}%"
+          
+          # Install the coverage tool
+          dotnet tool install -g dotnet-coverage
+          
+          # Use the tool to get a summary and parse the line coverage percentage
+          # The tool outputs a summary table. We grep for the 'Total' line, then use awk to get the line coverage value.
+          COVERAGE_PERCENTAGE=$(dotnet-coverage report -i ./test-results/coverage.cobertura.xml -o coverage.txt -f summary | grep 'Total' | awk '{print $3}' | sed 's/%//')
+          
+          echo "Actual coverage: $COVERAGE_PERCENTAGE%"
+          
+          # Compare the actual coverage with the threshold.
+          # The `bc` command is used for floating point comparison.
+          if (( $(echo "$COVERAGE_PERCENTAGE < ${{ inputs.test-coverage-threshold }}" | bc -l) )); then
+            echo "::error::Code coverage of $COVERAGE_PERCENTAGE% is below the required threshold of ${{ inputs.test-coverage-threshold }}%."
+            exit 1
+          else
+            echo "Code coverage meets the threshold."
+          fi
+
+      - name: 'Upload Test Results Artifact'
+        if: always() # Always run this step to upload results, even if the coverage check fails.
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ inputs.runner-os }}
+          path: ./test-results/
+          retention-days: 7

@@ -1,0 +1,33 @@
+# Kustomization for the Development Environment
+# This file applies development-specific patches to the base configuration.
+# It sets the development ingress hostname and applies more lenient rate limits
+# suitable for testing and debugging.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Inherit all common resources from the base configuration.
+resources:
+  - ../../base
+
+# Apply environment-specific patches.
+# Patches are applied to the resources loaded from the base.
+patches:
+  # Sets the hostname for all Ingress rules to the development-specific URL
+  # (e.g., dev.opc-mesh.com) and disables TLS.
+  - path: ingress-patch.yaml
+    target:
+      kind: Ingress
+      group: networking.k8s.io
+      version: v1
+      # Apply to all Ingress resources defined in the base
+      name: ".*"
+      annotationSelector: "kubernetes.io/ingress.class=kong"
+
+  # Overrides the global-rate-limiting plugin to set higher limits for development.
+  # This prevents developers and automated tests from being throttled.
+  - path: rate-limiting-patch.yaml
+    target:
+      kind: KongPlugin
+      group: configuration.konghq.com
+      version: v1
+      name: global-rate-limiting

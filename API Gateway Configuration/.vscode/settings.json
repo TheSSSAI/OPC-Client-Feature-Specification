@@ -1,0 +1,30 @@
+{
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll": "explicit"
+  },
+  "files.insertFinalNewline": true,
+  "files.trimTrailingWhitespace": true,
+  "yaml.customTags": [
+    "!And",
+    "!Equals",
+    "!Existing",
+    "!Get",
+    "!If",
+    "!Not",
+    "!Or",
+    "!Sub",
+    "!FindInMap"
+  ],
+  "yaml.format.enable": true,
+  "yaml.validate": true,
+  "yaml.schemas": {
+    "https://raw.githubusercontent.com/datreeio/datree/main/datree/resources/k8s-json-schema/v1.28.0-alpha.0/all.json": "glob:/*/**.yaml"
+  },
+  "[yaml]": {
+    "editor.defaultFormatter": "redhat.vscode-yaml"
+  },
+  "[markdown]": {
+    "files.trimTrailingWhitespace": false
+  }
+}

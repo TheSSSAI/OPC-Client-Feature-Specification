@@ -1,0 +1,111 @@
+#
+# CD - Deploy Service to Production Workflow
+#
+# This workflow orchestrates the deployment of a specific service version to the Production environment.
+# It is designed to be a manually triggered, gated process to ensure maximum control and safety.
+#
+# Key Features:
+# - Manual Trigger: Uses 'workflow_dispatch' to allow deployments only when initiated by an authorized user.
+# - Manual Approval Gate: Leverages GitHub Environments with a 'required reviewer' rule to enforce a manual approval step before the deployment job can run.
+# - Specific Version Deployment: Deploys a specific, pre-existing Docker image tag, ensuring that only vetted artifacts are released.
+# - Canary Support: Can trigger a canary release by passing specific parameters to the reusable Helm deploy workflow.
+# - Security: Uses OIDC for secure, keyless authentication to the production AWS account.
+# - Concurrency Control: Prevents multiple production deployments for the same service from running at the same time.
+#
+
+name: CD - Deploy Service to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      service_name:
+        description: 'The name of the service to deploy (e.g., iam_service, asset_topology_service).'
+        required: true
+        type: string
+      image_tag:
+        description: 'The specific Docker image tag to deploy (e.g., the Git SHA from a staging-verified build).'
+        required: true
+        type: string
+      canary_deployment:
+        description: 'Set to "true" to perform a canary deployment.'
+        required: false
+        type: boolean
+        default: false
+
+# Minimal permissions required for deployment jobs.
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  # This job looks up the service configuration based on the input service_name.
+  # This makes the main deployment job cleaner and avoids a large 'if' block.
+  lookup-service-config:
+    name: Lookup Service Configuration
+    runs-on: ubuntu-latest
+    outputs:
+      config: ${{ steps.lookup.outputs.config }}
+    steps:
+      - id: lookup
+        run: |
+          SERVICE_NAME="${{ github.event.inputs.service_name }}"
+          # In a real scenario, this mapping could come from a central config file.
+          if [ "$SERVICE_NAME" == "iam_service" ]; then
+            CONFIG='{"name": "IAM Service", "ecr-repo-name": "industrial-ai/iam-service", "namespace": "iam", "release-name": "iam-service"}'
+          elif [ "$SERVICE_NAME" == "asset_topology_service" ]; then
+            CONFIG='{"name": "Asset Topology Service", "ecr-repo-name": "industrial-ai/asset-topology-service", "namespace": "assets", "release-name": "asset-topology-service"}'
+          else
+            echo "::error::Unknown service name: $SERVICE_NAME"
+            exit 1
+          fi
+          echo "config=$CONFIG" >> $GITHUB_OUTPUT
+
+  # This job performs the actual deployment to the Production environment.
+  deploy-production:
+    name: Deploy ${{ fromJson(needs.lookup-service-config.outputs.config).name }} to Production
+    needs: lookup-service-config
+    runs-on: ubuntu-latest
+    
+    # This is the manual approval gate. The 'production' environment must be configured in GitHub
+    # with a 'Required reviewers' protection rule. The workflow will pause here until an authorized
+    # user approves it.
+    environment:
+      name: production
+      url: https://prod.example.com/${{ fromJson(needs.lookup-service-config.outputs.config).release-name }}
+
+    # Prevent concurrent production deployments for the same service.
+    concurrency:
+      group: deploy-production-${{ github.event.inputs.service_name }}
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to Production using Helm
+        uses: ./.github/workflows/reusable/reusable-helm-deploy.yml
+        with:
+          environment: production
+          namespace: ${{ fromJson(needs.lookup-service-config.outputs.config).namespace }}
+          image-uri: ${{ vars.AWS_ECR_REGISTRY_URI }}/${{ fromJson(needs.lookup-service-config.outputs.config).ecr-repo-name }}:${{ github.event.inputs.image_tag }}
+          helm-chart-path: ./helm/charts/application
+          release-name: ${{ fromJson(needs.lookup-service-config.outputs.config).release-name }}
+          aws-region: ${{ vars.AWS_REGION }}
+          canary-enabled: ${{ github.event.inputs.canary_deployment }}
+        secrets:
+          AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_PRODUCTION_ROLE_ARN }}
+          KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG_PRODUCTION }}
+
+      - name: Post-deployment notification
+        if: success()
+        # In a real scenario, this would integrate with Slack, Teams, or another notification service.
+        run: |
+          echo "✅ Successfully deployed ${{ fromJson(needs.lookup-service-config.outputs.config).name }} version ${{ github.event.inputs.image_tag }} to Production."
+          echo "Triggered by: @${{ github.actor }}"
+
+      - name: Post-deployment failure notification
+        if: failure()
+        run: |
+          echo "❌ Failed to deploy ${{ fromJson(needs.lookup-service-config.outputs.config).name }} version ${{ github.event.inputs.image_tag }} to Production."
+          echo "Triggered by: @${{ github.actor }}"
+          # This could also trigger a PagerDuty alert.

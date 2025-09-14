@@ -1,0 +1,92 @@
+# reusable-docker-build-push.yml
+# This reusable workflow builds a Docker image and pushes it to a specified AWS ECR repository.
+# It uses OIDC for secure, keyless authentication to AWS.
+# REQ-1-020, REQ-1-075: Supports containerization of applications.
+# REQ-1-081: Implements secure access to cloud resources.
+
+name: 'Reusable Workflow: Docker Build and Push to ECR'
+
+on:
+  workflow_call:
+    inputs:
+      dockerfile-path:
+        description: 'Path to the Dockerfile.'
+        required: true
+        type: string
+      ecr-repository:
+        description: 'The name of the AWS ECR repository to push the image to.'
+        required: true
+        type: string
+      image-tag:
+        description: 'A specific tag to apply to the image (e.g., git commit SHA).'
+        required: true
+        type: string
+      aws-region:
+        description: 'The AWS region where the ECR repository is located.'
+        required: true
+        type: string
+    secrets:
+      aws-role-to-assume:
+        description: 'The ARN of the AWS IAM Role to assume for OIDC authentication.'
+        required: true
+    outputs:
+      image-uri:
+        description: "The full URI of the pushed Docker image."
+        value: ${{ jobs.build-and-push.outputs.image-uri }}
+
+jobs:
+  build-and-push:
+    name: Build and Push to ECR
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write # Required for OIDC authentication with AWS.
+      contents: read   # Required to checkout the code.
+
+    outputs:
+      image-uri: ${{ steps.set-image-uri.outputs.image-uri }}
+
+    steps:
+      - name: 'Checkout Code'
+        uses: actions/checkout@v4
+
+      - name: 'Configure AWS Credentials via OIDC'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.aws-role-to-assume }}
+          aws-region: ${{ inputs.aws-region }}
+
+      - name: 'Login to Amazon ECR'
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: 'Set up Docker Buildx'
+        uses: docker/setup-buildx-action@v3
+
+      - name: 'Extract Docker metadata'
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr-repository }}
+          tags: |
+            type=raw,value=${{ inputs.image-tag }}
+            type=sha,prefix=,format=short
+
+      - name: 'Build and push Docker image'
+        id: build-and-push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ inputs.dockerfile-path }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: 'Set Image URI Output'
+        id: set-image-uri
+        run: |
+          IMAGE_URI="${{ steps.login-ecr.outputs.registry }}/${{ inputs.ecr-repository }}:${{ inputs.image-tag }}"
+          echo "image-uri=$IMAGE_URI" >> $GITHUB_OUTPUT
+          echo "Full Image URI: $IMAGE_URI"

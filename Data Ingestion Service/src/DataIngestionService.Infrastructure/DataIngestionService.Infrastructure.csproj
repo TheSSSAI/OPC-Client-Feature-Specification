@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DataIngestionService.Application\DataIngestionService.Application.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Npgsql" Version="$(NpgsqlVersion)" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Npgsql" Version="$(OpenTelemetryInstrumentationNpgsqlVersion)" />
+    <PackageReference Include="Polly" Version="$(PollyVersion)" />
+    <PackageReference Include="StackExchange.Redis" Version="$(StackExchangeRedisVersion)" />
+  </ItemGroup>
+
+</Project>

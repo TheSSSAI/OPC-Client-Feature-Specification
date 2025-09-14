@@ -1,0 +1,10 @@
+{
+  "recommendations": [
+    "redhat.vscode-yaml",
+    "ms-azuretools.vscode-docker",
+    "ms-kubernetes-tools.vscode-kubernetes-tools",
+    "timonwong.shellcheck",
+    "github.vscode-github-actions",
+    "davidanson.vscode-markdownlint"
+  ]
+}

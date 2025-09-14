@@ -1,0 +1,35 @@
+name: PR Validation Check
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-gateway-config:
+    name: Validate Kong Gateway Configuration
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up asdf for tool version management
+        uses: asdf-vm/actions/setup@v3
+
+      - name: Install tools from .tool-versions
+        uses: asdf-vm/actions/install@v3
+        # The cache key is the hash of the .tool-versions file.
+        # This means the cache is invalidated only when the tool versions change.
+        id: asdf-install
+
+      - name: Lint YAML files
+        run: make lint
+
+      - name: Validate Kustomize configurations for all environments
+        run: make validate

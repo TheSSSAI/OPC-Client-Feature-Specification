@@ -1,0 +1,43 @@
+# Kustomization for the Production Environment
+# This file applies production-hardened patches to the base configuration.
+# It configures the official public hostname, enables TLS with production
+# certificates, and sets strict rate limits to protect the services.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Inherit all common resources from the base configuration.
+resources:
+  - ../../base
+
+# Apply environment-specific patches.
+# Patches are applied in order to the resources loaded from the base.
+patches:
+  # Sets the public production hostname (e.g., api.opc-mesh.com) for all Ingress rules.
+  - path: ingress-patch.yaml
+    target:
+      kind: Ingress
+      group: networking.k8s.io
+      version: v1
+      # Apply to all Ingress resources defined in the base
+      name: ".*"
+      annotationSelector: "kubernetes.io/ingress.class=kong"
+
+  # Overrides the global-rate-limiting plugin to set strict, production-ready limits.
+  # This is a critical security measure to prevent abuse and ensure availability.
+  - path: rate-limiting-patch.yaml
+    target:
+      kind: KongPlugin
+      group: configuration.konghq.com
+      version: v1
+      name: global-rate-limiting
+
+  # Enables TLS on all Ingress resources by referencing the production certificate secret.
+  # This secret is expected to be created in the cluster by a certificate manager or manually.
+  - path: tls-secret-patch.yaml
+    target:
+      kind: Ingress
+      group: networking.k8s.io
+      version: v1
+      # Apply to all Ingress resources defined in the base
+      name: ".*"
+      annotationSelector: "kubernetes.io/ingress.class=kong"

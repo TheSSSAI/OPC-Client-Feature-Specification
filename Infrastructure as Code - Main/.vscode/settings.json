@@ -1,0 +1,23 @@
+{
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "hashicorp.terraform",
+    "[terraform]": {
+        "editor.defaultFormatter": "hashicorp.terraform",
+        "editor.formatOnSave": true,
+        "editor.formatOnPaste": true
+    },
+    "[terraform-vars]": {
+        "editor.defaultFormatter": "hashicorp.terraform",
+        "editor.formatOnSave": true,
+        "editor.formatOnPaste": true
+    },
+    "files.associations": {
+        "*.tfvars": "terraform-vars"
+    },
+    "files.eol": "\n",
+    "search.exclude": {
+        "**/.terraform": true,
+        "**/.terraform.lock.hcl": true
+    },
+    "terraform.languageServer.enable": true
+}

@@ -1,0 +1,12 @@
+# Kustomize patch for the production environment's global rate-limiting policy.
+# This patch targets the 'global-rate-limiting' KongPlugin resource from the base
+# and applies stricter limits to protect the production services from abuse,
+# denial-of-service attacks, and misbehaving clients, as per REQ-NFR-006.
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: global-rate-limiting
+config:
+  # Stricter rate limits for production to ensure system stability and security.
+  minute: 100
+  hour: 5000

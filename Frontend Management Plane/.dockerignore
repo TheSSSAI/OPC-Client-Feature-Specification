@@ -1,0 +1,15 @@
+# Exclude files and directories from the Docker build context to optimize build time and security.
+
+.DS_Store
+.env
+.env.*
+.git
+.github
+.idea
+.vscode
+*.sh
+*.lock
+dist
+node_modules
+npm-debug.log*
+README.md

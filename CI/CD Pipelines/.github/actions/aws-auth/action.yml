@@ -1,0 +1,78 @@
+# ------------------------------------------------------------------------------
+#
+#  Reusable Composite Action: AWS Authentication
+#
+#  Description:
+#  This action standardizes the process for authenticating with Amazon Web
+#  Services (AWS) using OpenID Connect (OIDC). It encapsulates the official
+#  `aws-actions/configure-aws-credentials` action to provide a simplified
+#  and secure interface for all CI/CD workflows that need to interact with AWS.
+#
+#  By using this composite action, we enforce the security best practice of
+#  avoiding long-lived static credentials (IAM users with access keys) in
+#  favor of short-lived, dynamically-generated credentials.
+#
+#  This action is a critical component for fulfilling:
+#  - REQ-1-081: Securely store and retrieve secrets from AWS Secrets Manager.
+#  - Security NFRs: Mandates the use of centralized, secure authentication.
+#  - Architectural Pattern: Implements the "Secure Cloud Access via OIDC" pattern.
+#
+#  Usage in a workflow job:
+#
+#  permissions:
+#    id-token: write  # Required for OIDC authentication
+#    contents: read
+#
+#  steps:
+#    - name: Authenticate to AWS
+#      uses: ./.github/actions/aws-auth
+#      with:
+#        aws-role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+#        aws-region: ${{ secrets.AWS_REGION }}
+#
+# ------------------------------------------------------------------------------
+
+name: 'AWS Authentication'
+description: 'Configures AWS credentials using OIDC for a specific IAM role and region.'
+
+# --------------------------------------------------------------------------
+#  Inputs
+#  Defines the parameters that can be passed to this action from a calling
+#  workflow. Both inputs are required to ensure a valid authentication attempt.
+# --------------------------------------------------------------------------
+inputs:
+  aws-role-to-assume:
+    description: 'The ARN of the AWS IAM role to assume.'
+    required: true
+  aws-region:
+    description: 'The AWS region to configure the credentials for (e.g., us-east-1).'
+    required: true
+
+# --------------------------------------------------------------------------
+#  Runs
+#  Specifies that this is a composite action, bundling multiple steps.
+#  The steps below will be executed when this action is called.
+# --------------------------------------------------------------------------
+runs:
+  using: 'composite'
+  steps:
+    - name: Configure AWS Credentials via OIDC
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        # The IAM role ARN to be assumed by the GitHub Actions runner.
+        # This is passed from the calling workflow.
+        role-to-assume: ${{ inputs.aws-role-to-assume }}
+
+        # The AWS region where the resources are located.
+        # This is passed from the calling workflow.
+        aws-region: ${{ inputs.aws-region }}
+
+        # A descriptive name for the role session. This appears in AWS CloudTrail
+        # logs, providing clear traceability for actions performed by the CI/CD pipeline.
+        # We generate a unique name using the GitHub context to link the session
+        # back to a specific repository, workflow, and job.
+        role-session-name: github-actions-${{ github.repository }}-${{ github.workflow }}-${{ github.job }}
+
+        # Specifies the duration of the temporary credentials.
+        # The default of 1 hour is generally sufficient for most CI/CD jobs.
+        role-duration-seconds: 3600 # 1 hour

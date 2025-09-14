@@ -1,0 +1,74 @@
+# Visual Studio Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# Rider
+.idea/
+*.iml
+*.iws
+
+# User-specific files
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Ww][Ii][Nn]64/
+bld/
+[Bb]in/
+[Oo]bj/
+Log/
+[Ll]ogs/
+
+# Visual Studio 2019 cache/options
+.vs/
+
+# Tests
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+*.[Pp]ublish.xml
+*.[Cc]overage.xml
+*.nupkg
+
+# NuGet
+*.nuget.props
+*.nuget.targets
+packages/
+*.nuget.config
+!nuget.config
+
+# Souffle detector cache
+*.souffle.json
+
+# ReSharper
+_ReSharper*/
+*.[Rr]eSharper
+*.DotSettings.user
+
+# Mac
+.DS_Store
+
+# Other
+*.zip
+*.rar
+*.7z
+
+# Secrets
+secrets.json
+appsettings.Development.json
+
+# Environment files
+.env

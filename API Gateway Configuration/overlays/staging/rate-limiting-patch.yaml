@@ -1,0 +1,12 @@
+# Kustomize patch for the staging environment's global rate-limiting policy.
+# This patch targets the 'global-rate-limiting' KongPlugin resource from the base
+# and sets limits that are close to production values. This allows for realistic
+# performance and load testing in a pre-production environment.
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: global-rate-limiting
+config:
+  # Production-like rate limits for staging to enable realistic load testing.
+  minute: 200
+  hour: 10000

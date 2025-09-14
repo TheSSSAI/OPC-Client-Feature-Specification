@@ -1,0 +1,11 @@
+# Kustomize patch for staging environment Ingress resources.
+# This patch overrides the placeholder hostname in the base Ingress configurations
+# with the specific hostname for the staging environment, which is used for
+# pre-production testing and UAT.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ingress-hostname-patch # The name is for reference, Kustomize targets by kind.
+spec:
+  rules:
+    - host: api.staging.opc-central.com

@@ -1,0 +1,129 @@
+#
+# CD - Deploy Service to Staging Workflow
+#
+# This workflow automates the deployment of services to the Staging environment.
+# It is triggered by a push (merge) to the 'develop' branch.
+#
+# Key Features:
+# - Path Filtering: Identifies which service was updated to deploy only the changed component.
+# - Artifact Generation: Builds and pushes a versioned Docker image to AWS ECR.
+# - Automated Deployment: Deploys the new image to the Staging EKS cluster using a reusable Helm workflow.
+# - Post-deployment Validation: Runs automated performance tests against the newly deployed service.
+# - Security: Uses OIDC for secure, keyless authentication to AWS.
+# - Concurrency Control: Ensures that only the latest commit for a service is deployed, canceling older runs.
+#
+
+name: CD - Deploy Service to Staging
+
+on:
+  push:
+    branches:
+      - develop
+    paths:
+      - 'src/Services/**'
+      - 'src/Edge/OpcCoreClient/**'
+      - 'src/Frontend/ManagementPlane/**'
+
+# Minimal permissions required for deployment jobs.
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  # This job identifies which service has been updated in the push to 'develop'.
+  determine-service-to-deploy:
+    name: Determine Service to Deploy
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.filter.outputs.changes }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Identify changed service using path filter
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          # This assumes one service change per commit for simplicity.
+          # For monorepo PRs merging multiple changes, this would need enhancement.
+          filters: |
+            iam_service:
+              - 'src/Services/IAM/**'
+            asset_topology_service:
+              - 'src/Services/AssetTopology/**'
+            device_management_service:
+              - 'src/Services/DeviceManagement/**'
+            data_ingestion_service:
+              - 'src/Services/DataIngestion/**'
+            opc_core_client:
+              - 'src/Edge/OpcCoreClient/**'
+            frontend_mpl:
+              - 'src/Frontend/ManagementPlane/**'
+
+  # This job builds the Docker image and deploys the service to the Staging environment.
+  deploy-staging:
+    name: Deploy ${{ matrix.service.name }} to Staging
+    needs: determine-service-to-deploy
+    if: needs.determine-service-to-deploy.outputs.matrix != '[]'
+    strategy:
+      matrix:
+        service: ${{ fromJson(needs.determine-service-to-deploy.outputs.matrix) }}
+    
+    # Configure concurrency to cancel previous runs for the same service on the same branch.
+    concurrency:
+      group: deploy-staging-${{ matrix.service.name }}
+      cancel-in-progress: true
+
+    runs-on: ubuntu-latest
+    environment: staging
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Step 1: Build and push the Docker image to AWS ECR.
+      # The reusable workflow handles authentication, building, tagging, and pushing.
+      - name: Build and Push Docker Image
+        id: docker_build
+        uses: ./.github/workflows/reusable/reusable-docker-build-push.yml
+        with:
+          dockerfile-path: ${{ matrix.service.path }}/Dockerfile
+          ecr-repository: ${{ matrix.service.ecr-repo-name }}
+          aws-region: ${{ vars.AWS_REGION }}
+        secrets:
+          AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_STAGING_ROLE_ARN }}
+
+      # Step 2: Deploy the newly built image to the Staging EKS cluster using Helm.
+      - name: Deploy to Staging using Helm
+        id: helm_deploy
+        uses: ./.github/workflows/reusable/reusable-helm-deploy.yml
+        with:
+          environment: staging
+          namespace: ${{ matrix.service.namespace }}
+          image-uri: ${{ steps.docker_build.outputs.image-uri }}
+          helm-chart-path: ./helm/charts/application
+          release-name: ${{ matrix.service.release-name }}
+          aws-region: ${{ vars.AWS_REGION }}
+        secrets:
+          AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_STAGING_ROLE_ARN }}
+          KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG_STAGING }}
+
+      # Step 3: Run post-deployment performance tests against the service endpoint.
+      - name: Run Performance Tests
+        if: success() && matrix.service.has-performance-tests == 'true'
+        run: |
+          echo "Running performance tests against ${{ steps.helm_deploy.outputs.service-url }}..."
+          chmod +x ./scripts/run-performance-tests.sh
+          ./scripts/run-performance-tests.sh \
+            --target-url "${{ steps.helm_deploy.outputs.service-url }}" \
+            --duration "1m" \
+            --vusers "10" \
+            --report-path "performance-report.html"
+      
+      # Step 4: Upload the performance test report as a workflow artifact.
+      - name: Upload Performance Report
+        if: always() && matrix.service.has-performance-tests == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-report-${{ matrix.service.name }}
+          path: performance-report.html

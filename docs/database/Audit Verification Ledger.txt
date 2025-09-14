@@ -1,0 +1,30 @@
+/*
+-- Prerequisites:
+-- 1. An active AWS account.
+-- 2. An Amazon QLDB ledger named 'cmp_audit_ledger' must be created via the AWS Management Console, CLI, or CloudFormation.
+-- The following PartiQL commands should be executed within the Query Editor for the 'cmp_audit_ledger' ledger.
+*/
+
+-- Step 1: Create the table for Audit Records.
+-- This table will store the immutable audit documents.
+CREATE TABLE AuditRecord;
+
+-- Step 2: Create indexes to optimize queries.
+-- QLDB indexes are crucial for query performance.
+
+-- Index for the correlation ID from the relational audit log.
+CREATE INDEX ON AuditRecord (auditLogId);
+
+-- Index for querying by tenant and timestamp.
+CREATE INDEX ON AuditRecord (tenantId);
+CREATE INDEX ON AuditRecord (timestamp);
+
+-- Index for querying by user.
+CREATE INDEX ON AuditRecord (userId);
+
+-- Index for querying by action type.
+CREATE INDEX ON AuditRecord (actionType);
+
+-- Indexes for querying by entity.
+CREATE INDEX ON AuditRecord (entityName);
+CREATE INDEX ON AuditRecord (entityId);

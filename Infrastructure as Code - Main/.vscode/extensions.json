@@ -1,0 +1,8 @@
+{
+    "recommendations": [
+        "hashicorp.terraform",
+        "editorconfig.editorconfig",
+        "github.vscode-github-actions",
+        "redhat.vscode-yaml"
+    ]
+}

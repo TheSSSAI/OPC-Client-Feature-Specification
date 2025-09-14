@@ -1,0 +1,36 @@
+<Project>
+  <!-- 
+    This file applies common MSBuild properties to all projects found under this directory.
+    It helps enforce consistency and reduces boilerplate in individual .csproj files.
+    https://docs.microsoft.com/en-us/visualstudio/msbuild/customize-your-build
+  -->
+  <PropertyGroup>
+    <!-- Framework and Language Settings -->
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>12.0</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    
+    <!-- Enforce Clean Architecture: Prevent projects from referencing higher-level projects.
+         This can be configured with a custom analyzer if needed, but for now, we rely on developer discipline. -->
+
+    <!-- Common NuGet Package Metadata -->
+    <Authors>Enterprise Systems Inc.</Authors>
+    <Company>Enterprise Systems Inc.</Company>
+    <Product>Industrial IoT Platform</Product>
+    <RepositoryUrl>https://github.com/your-org/your-repo</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <Copyright>Copyright © Enterprise Systems Inc. 2024</Copyright>
+
+    <!--
+      The version will be controlled by the CI/CD pipeline,
+      often using a tool like Nerdbank.GitVersioning or GitVersion.
+      Setting a default here for local development.
+    -->
+    <Version>1.0.0-local</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+  </PropertyGroup>
+
+</Project>

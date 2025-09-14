@@ -1,0 +1,98 @@
+#
+# Ops - Pipeline Health Check Workflow
+#
+# This workflow runs on a schedule to perform self-validation on the CI/CD infrastructure itself.
+# Its purpose is to proactively detect issues like syntax errors in workflows, broken actions,
+# or invalid Helm chart configurations before they can cause failures in developer-triggered pipelines.
+#
+# Key Features:
+# - Scheduled Execution: Runs automatically on a daily basis.
+# - Manual Trigger: Can also be run on-demand via 'workflow_dispatch'.
+# - Comprehensive Linting: Checks the syntax and best practices for GitHub Actions, Shell scripts, and Helm charts.
+# - Proactive Failure Detection: Catches errors in the pipeline code, not the application code.
+#
+
+name: Ops - Pipeline Health Check
+
+on:
+  workflow_dispatch: # Allows manual triggering
+  schedule:
+    - cron: '0 4 * * *' # Runs daily at 4:00 UTC
+
+# Minimal permissions are needed as this is a read-only check.
+permissions:
+  contents: read
+
+jobs:
+  # This job lints all GitHub Actions workflow files in the repository.
+  lint-workflows:
+    name: Lint GitHub Actions Workflows
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Action Linter
+        uses: reviewdog/action-actionlint@v1
+        with:
+          reporter: github-pr-check
+          fail_on_error: true
+          filter_mode: nofilter
+          level: warning
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+  # This job lints all shell scripts in the repository.
+  lint-shell-scripts:
+    name: Lint Shell Scripts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run ShellCheck
+        uses: reviewdog/action-shellcheck@v1
+        with:
+          reporter: github-pr-check
+          fail_on_error: true
+          filter_mode: nofilter
+          level: warning
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          path: "./scripts/*.sh" # Target all shell scripts in the scripts directory
+
+  # This job lints the application's Helm chart.
+  lint-helm-chart:
+    name: Lint Helm Chart
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'v3.15.2'
+
+      - name: Run Helm Lint
+        run: helm lint ./helm/charts/application
+
+  # This job serves as a final summary for the health check run.
+  health-check-summary:
+    name: Health Check Summary
+    needs: [lint-workflows, lint-shell-scripts, lint-helm-chart]
+    if: always() # Always run to report the final status
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check status of all linting jobs
+        if: |
+          needs.lint-workflows.result != 'success' ||
+          needs.lint-shell-scripts.result != 'success' ||
+          needs.lint-helm-chart.result != 'success'
+        run: |
+          echo "::error::One or more pipeline health checks failed. Please review the logs."
+          exit 1
+      - name: All health checks passed
+        if: |
+          needs.lint-workflows.result == 'success' &&
+          needs.lint-shell-scripts.result == 'success' &&
+          needs.lint-helm-chart.result == 'success'
+        run: echo "✅ All pipeline health checks passed successfully."
